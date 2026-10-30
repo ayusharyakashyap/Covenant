@@ -1,0 +1,28 @@
+{
+  "name": "covenant",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plain-English contracts that hold, verify and release money on PayPal, powered by Claude.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "tsx server/index.ts",
+    "dev": "node scripts/build.mjs --watch & tsx watch server/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test server/money.test.ts server/engine.test.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "mcp": "tsx mcp/server.ts"
+  },
+  "dependencies": {
+    "esbuild": "^0.28.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tsx": "^4.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.0"
+  }
+}

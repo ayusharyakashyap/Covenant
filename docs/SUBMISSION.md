@@ -27,9 +27,11 @@ You type the deal the way you'd text it:
 - **Claude compiles it** into milestones with objectively checkable conditions, deadlines and a capped penalty, plus a plain-English version both parties sign and a list of questions worth settling first.
 - **The client funds it with PayPal**, using an order with `intent=AUTHORIZE`. The money is held, not sent.
 - **The freelancer uploads proof**: images, PDFs, files, links or a GitHub pull request.
-- **Claude verifies each condition**. It looks at the images, reads the PDFs, checks formats, and relies on facts Covenant fetched itself (GitHub says the PR is merged), then explains its reasoning per condition with a confidence score.
+- **Claude verifies each condition**. It looks at the images, reads the PDFs, and opens delivered websites in a real cloud browser (Kernel) to see them at desktop and mobile size. It relies on facts Covenant measured itself rather than the freelancer's claims: the real file type from its bytes, pixel sizes, PDF page counts, CSV duplicate counts, GitHub merge status. It explains its reasoning per condition with a confidence score.
 - **Verified milestones pay out on their own.** Covenant captures that milestone from the PayPal authorization and sends it to the freelancer with the Payouts API. Late penalties are calculated in code and simply never captured. The final capture releases everything unearned back to the client.
 - **Disputes go to an AI arbiter** that weighs the signed terms, the evidence and both statements, then issues a percentage split that executes on PayPal immediately.
+- **A Money dashboard** shows everything held, paid and returned across all your contracts in AG Grid, with a Bryntum timeline, an AG Studio report builder, and **Ask**: type "which milestones are late?" and Claude answers and reconfigures the grid to show the rows behind its answer.
+- **Notifications** go to Zapier (email, Slack, sheets) whenever money moves or a decision is needed.
 - **AI agents can use it too.** An MCP server lets Claude Desktop, Cursor or any agent framework create covenants, deliver work and get paid, while a human still approves the PayPal hold.
 
 ## How we built it
@@ -37,7 +39,10 @@ You type the deal the way you'd text it:
 - **PayPal (sandbox):** Orders v2 with `intent=AUTHORIZE` and itemized milestones, the JS SDK Buttons for approval, order authorization, multiple partial captures with `final_capture`, authorization voids, Payouts (with status polling), refunds, and webhook signature verification. Every money-moving call carries a `PayPal-Request-Id` idempotency key.
 - **Claude (Anthropic Messages API):** three roles (compiler, verifier, arbiter), each using a forced tool call with a strict JSON schema so outputs are structured, never scraped from prose. The verifier gets images as vision input and PDFs as document blocks.
 - **Deterministic money engine:** penalties, splits, rounding and capture amounts are integer-cents code with unit tests. The model interprets; code enforces.
-- **App:** a Node server with no framework, server-sent events so both parties see money move live, a React 19 front end bundled with esbuild, AG Grid for the PayPal ledger, and an MCP stdio server. Deploys to Render with the included blueprint.
+- **Measured facts:** before the model sees a file, code inspects it (magic bytes, image dimensions, PDF page counts including compressed object streams, CSV duplicates), and the verifier is told those facts outrank any claim.
+- **Evaluation:** a 24-case labelled suite (`npm run eval`) covering good work, incomplete work, fakes and four kinds of prompt injection, reporting decision accuracy and unsafe payouts.
+- **Sponsor tools:** Kernel cloud browsers for live-site verification, AG Grid and AG Studio for the ledger and Money dashboard, Bryntum Gantt for the timeline, a Postman collection that runs the full lifecycle as tests, Zapier-ready webhooks, and a Render blueprint.
+- **App:** a Node server with no framework, server-sent events so both parties see money move live, a React 19 front end bundled with esbuild, and an MCP stdio server.
 
 ## Challenges we ran into
 
@@ -51,7 +56,8 @@ You type the deal the way you'd text it:
 - One sentence in, a working escrow contract out, with real sandbox money moving through four PayPal APIs.
 - The prompt-injection demo: a booby-trapped handoff note is caught, ignored, and the money is held for a human.
 - A verifier that shows its work: every condition gets a tick, a confidence and a sentence explaining which file it relied on.
-- An end-to-end test suite that runs the full lifecycle, including disputes, in under a second.
+- An end-to-end test suite that runs the full lifecycle, including disputes, in under a second, plus a verifier evaluation that measures the number that matters for money: unsafe payouts.
+- A safety rule we can prove: the non-AI fallback never pays on its own, and a broken API key degrades to it automatically instead of breaking the app.
 
 ## What we learned
 
@@ -68,7 +74,7 @@ You type the deal the way you'd text it:
 
 ## Built with
 
-paypal-orders-api · paypal-payouts · paypal-js-sdk · paypal-webhooks · claude · anthropic-api · model-context-protocol · typescript · node.js · react · esbuild · ag-grid · render
+paypal-orders-api · paypal-payouts · paypal-js-sdk · paypal-webhooks · claude · anthropic-api · model-context-protocol · kernel · ag-grid · ag-studio · bryntum · postman · zapier · render · typescript · node.js · react · esbuild
 
 ## Tools: which AI was used and how
 
@@ -77,7 +83,8 @@ paypal-orders-api · paypal-payouts · paypal-js-sdk · paypal-webhooks · claud
 1. **Contract compiler:** converts plain-English deals into structured milestones, conditions (with evidence types), deadlines, penalties, a plain-English summary, open questions and dispute risks, via a forced tool call with a JSON schema.
 2. **Evidence verifier:** uses vision on images and native PDF reading to judge each condition, returns per-condition reasoning and calibrated confidence, and flags prompt-injection attempts in the evidence.
 3. **Dispute arbiter:** weighs the signed terms, verifier findings and both parties' statements to produce a binding percentage split with reasoning and citations.
+4. **Ask (analytics assistant):** answers questions about your money and returns an AG Grid view (columns, filters, sort) showing the rows behind the answer.
 
 The release policy and all money math are deterministic code, not model output. Without an API key, a clearly labelled rules engine stands in so the app still runs end to end.
 
-**Sponsor tools:** AG Grid (ledger), Render (hosting blueprint).
+**Sponsor tools:** Kernel (cloud browsers that open and screenshot delivered websites for the verifier), AG Grid (ledger and Money dashboard), AG Studio (drag-and-drop report builder over the same data), Bryntum Gantt (contract timeline), Postman (full-lifecycle API collection), Zapier (notifications via webhooks), Render (deployment blueprint).

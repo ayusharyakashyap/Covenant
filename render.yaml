@@ -18,6 +18,14 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: KERNEL_API_KEY
+        sync: false
+      - key: AG_STUDIO_LICENSE
+        sync: false
+      - key: NOTIFY_WEBHOOK_URL
+        sync: false
+      - key: PUBLIC_URL
+        sync: false
       - key: ANTHROPIC_MODEL
         value: claude-sonnet-5-5
       - key: AUTO_RELEASE_THRESHOLD

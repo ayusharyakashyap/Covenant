@@ -10,13 +10,14 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "start": "tsx server/index.ts",
-    "dev": "node scripts/build.mjs --watch & tsx watch server/index.ts",
+    "start": "node --import tsx server/index.ts",
+    "dev": "node scripts/build.mjs --watch & DEMO_TOOLS=1 node --import tsx --watch server/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test server/money.test.ts server/engine.test.ts",
+    "test": "tsx --test server/money.test.ts server/engine.test.ts server/http.test.ts",
     "smoke": "tsx scripts/smoke.ts",
     "mcp": "tsx mcp/server.ts",
-    "eval": "tsx eval/run.ts"
+    "eval": "tsx eval/run.ts",
+    "demo": "DEMO_TOOLS=1 node --import tsx server/index.ts"
   },
   "dependencies": {
     "esbuild": "^0.28.0",

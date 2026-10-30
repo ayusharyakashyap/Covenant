@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Covenant — PayPal escrow contracts API",
-    "description": "Runs a whole Covenant contract end to end: compile a plain-English deal, sign, fund with a PayPal authorization, submit evidence, verify, capture and pay out.\n\nRun the folder with the Collection Runner. With PayPal keys configured on the server, open the `approveUrl` logged by **Create PayPal order** in a browser and approve as your sandbox buyer before **Authorize** runs (add a delay, or run step by step). Without keys the server's simulator authorizes immediately.",
+    "description": "Runs a whole Covenant contract end to end: compile a plain-English deal, invite the freelancer, sign, fund with a PayPal authorization, submit evidence, verify in the background, capture and pay out.\n\nRun the folder with the Collection Runner with a delay of 2 seconds between requests (10 seconds when Claude verifies), since verification runs in the background. With PayPal keys configured on the server, open the `approveUrl` logged by **Create PayPal order** in a browser and approve as your sandbox buyer before **Authorize** runs (add a delay, or run step by step). Without keys the server's simulator authorizes immediately.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -19,6 +19,10 @@
     },
     {
       "key": "payeeKey",
+      "value": ""
+    },
+    {
+      "key": "inviteCode",
       "value": ""
     },
     {
@@ -41,7 +45,7 @@
             "exec": [
               "pm.test('responds 200', () => pm.response.to.have.status(200));",
               "const r = pm.response.json();",
-              "pm.test('reports integrations', () => pm.expect(r).to.have.keys('ok','paypal','ai'));"
+              "pm.test('server is healthy', () => pm.expect(r.ok).to.eql(true));"
             ]
           }
         }
@@ -77,8 +81,8 @@
               "pm.test('responds 200', () => pm.response.to.have.status(200));",
               "const r = pm.response.json();",
               "pm.collectionVariables.set('contractId', r.contract.id);",
-              "pm.collectionVariables.set('payerKey', r.keys.payer);",
-              "pm.collectionVariables.set('payeeKey', r.keys.payee);",
+              "pm.collectionVariables.set('payerKey', r.payerKey);",
+              "pm.collectionVariables.set('inviteCode', r.inviteCode);",
               "pm.collectionVariables.set('milestoneId', r.contract.milestones[0].id);",
               "pm.test('compiled milestones add up to the total', () => pm.expect(r.contract.milestones.reduce((a, m) => a + m.amountCents, 0)).to.eql(r.contract.totalCents));"
             ]
@@ -116,7 +120,7 @@
       }
     },
     {
-      "name": "Sign as client",
+      "name": "Freelancer joins with the one-time invite",
       "event": [
         {
           "listen": "test",
@@ -125,7 +129,8 @@
             "exec": [
               "pm.test('responds 200', () => pm.response.to.have.status(200));",
               "const r = pm.response.json();",
-              "pm.test('client signed', () => pm.expect(r.contract.signatures).to.have.property('payer'));"
+              "pm.collectionVariables.set('payeeKey', r.payeeKey);",
+              "pm.test('freelancer has their own key', () => pm.expect(r.payeeKey).to.be.a('string'));"
             ]
           }
         }
@@ -136,14 +141,10 @@
           {
             "key": "Content-Type",
             "value": "application/json"
-          },
-          {
-            "key": "x-covenant-key",
-            "value": "{{payerKey}}"
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/sign",
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/join",
           "host": [
             "{{baseUrl}}"
           ],
@@ -151,12 +152,12 @@
             "api",
             "contracts",
             "{{contractId}}",
-            "sign"
+            "join"
           ]
         },
         "body": {
           "mode": "raw",
-          "raw": "{}",
+          "raw": "{\n  \"code\": \"{{inviteCode}}\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -166,7 +167,51 @@
       }
     },
     {
-      "name": "Freelancer adds payout email",
+      "name": "Invite can't be reused",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('refused with 410 Gone', () => pm.expect(pm.response.code).to.eql(410));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/join",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}",
+            "join"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{inviteCode}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Freelancer confirms payout email",
       "event": [
         {
           "listen": "test",
@@ -215,7 +260,7 @@
       }
     },
     {
-      "name": "Sign as client again (edits reset signatures)",
+      "name": "Sign as client",
       "event": [
         {
           "listen": "test",
@@ -223,7 +268,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('responds 200', () => pm.response.to.have.status(200));",
-              "const r = pm.response.json();"
+              "const r = pm.response.json();",
+              "pm.test('client signed', () => pm.expect(r.contract.signatures).to.have.property('payer'));"
             ]
           }
         }
@@ -418,7 +464,7 @@
       }
     },
     {
-      "name": "Freelancer submits evidence",
+      "name": "Freelancer submits evidence (verified in the background)",
       "event": [
         {
           "listen": "test",
@@ -428,8 +474,7 @@
               "pm.test('responds 200', () => pm.response.to.have.status(200));",
               "const r = pm.response.json();",
               "const m = r.contract.milestones.find((x) => x.id === pm.collectionVariables.get('milestoneId'));",
-              "pm.test('verifier produced a verdict', () => pm.expect(m.verdict).to.be.an('object'));",
-              "console.log('Verdict:', m.verdict.outcome, '-', m.verdict.summary);"
+              "pm.test('verification queued', () => pm.expect(m.status).to.eql('verifying'));"
             ]
           }
         }
@@ -468,6 +513,48 @@
               "language": "json"
             }
           }
+        }
+      }
+    },
+    {
+      "name": "Read verdict",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "const m = r.contract.milestones.find((x) => x.id === pm.collectionVariables.get('milestoneId'));",
+              "pm.test('verifier has decided', () => pm.expect(m.status).to.not.eql('verifying'));",
+              "console.log('Verdict:', m.verdict && m.verdict.outcome, '-', m.verdict && m.verdict.summary);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payerKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}"
+          ]
         }
       }
     },
@@ -532,7 +619,7 @@
             "exec": [
               "pm.test('responds 200', () => pm.response.to.have.status(200));",
               "const r = pm.response.json();",
-              "pm.test('tokens never leak', () => pm.expect(r.contract).to.not.have.property('tokens'));"
+              "pm.test('no key material in responses', () => pm.expect(JSON.stringify(r)).to.not.include('Hash'));"
             ]
           }
         }

@@ -6,7 +6,7 @@ import type { Milestone as M, Role } from "../../shared/types.ts";
 
 const STATUS: Record<M["status"], string> = {
   open: "Waiting for work",
-  verifying: "Claude is checking",
+  verifying: "Checking the work",
   needs_review: "Needs the client's review",
   rejected: "Conditions not met",
   disputed: "In dispute",
@@ -35,10 +35,10 @@ export function MilestoneCard({ c, m, role, keyFor, onChange }: { c: ContractVie
   const last = m.submissions.at(-1);
   const engineName = verdict?.engine === "claude" ? "Claude" : "Rules engine";
 
-  async function act(label: string, path: string, body: unknown = {}, done?: string) {
+  async function act(label: string, path: string, body: unknown = {}, done?: string, idempotencyKey?: string) {
     setBusy(label);
     try {
-      const next = await api.act(c.id, key, `/milestones/${m.id}${path}`, body);
+      const next = await api.act(c.id, key, `/milestones/${m.id}${path}`, body, idempotencyKey);
       onChange(next);
       if (done) toast(done);
       setText("");
@@ -128,7 +128,7 @@ export function MilestoneCard({ c, m, role, keyFor, onChange }: { c: ContractVie
       {(busy === "submit" || m.status === "verifying") && (
         <div className="thinking" role="status">
           <span className="dots" aria-hidden="true"><i /><i /><i /></span>
-          {c.compiledBy.engine === "claude" ? "Claude is checking each condition against the evidence" : "Checking each condition against the evidence"}
+          Checking each condition against the evidence. This page updates on its own.
         </div>
       )}
 
@@ -203,7 +203,7 @@ export function MilestoneCard({ c, m, role, keyFor, onChange }: { c: ContractVie
                       Add statement
                     </button>
                   )}
-                  <button className="btn small" disabled={!!busy} onClick={() => act("resolve", "/resolve", {}, "The arbiter has ruled.")}>
+                  <button className="btn small" disabled={!!busy} onClick={() => act("resolve", "/resolve", {}, "The arbiter has ruled.", `resolve-${m.id}`)}>
                     {busy === "resolve" ? "Weighing both sides…" : "Ask the arbiter to rule"}
                   </button>
                 </div>
@@ -221,7 +221,7 @@ export function MilestoneCard({ c, m, role, keyFor, onChange }: { c: ContractVie
 
       {funded && role === "payer" && ["needs_review", "rejected"].includes(m.status) && (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
-          <button className="btn go" disabled={!!busy} onClick={() => act("approve", "/review", { decision: "approve" }, "Approved. Payment is on its way.")}>
+          <button className="btn go" disabled={!!busy} onClick={() => act("approve", "/review", { decision: "approve" }, "Approved. Payment is on its way.", `approve-${m.id}-${last?.id ?? "none"}`)}>
             Approve and pay {money(m.amountCents, c.currency)}
           </button>
           {m.status === "needs_review" && (

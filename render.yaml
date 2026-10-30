@@ -1,15 +1,33 @@
-# One-click deploy on Render: New → Blueprint → point at this repo.
+# Render Blueprint: New → Blueprint → select this repo.
+# Single instance with a persistent disk (SQLite). For multiple instances, switch storage to
+# Postgres + object storage first; see docs/ARCHITECTURE.md ("Scaling out").
 services:
   - type: web
     name: covenant
     runtime: node
-    plan: free
+    plan: starter            # persistent disks need a paid instance type
     buildCommand: npm install && npm run build
-    startCommand: npm start
-    healthCheckPath: /api/health
+    startCommand: node --import tsx server/index.ts   # node directly so SIGTERM reaches it (graceful drain)
+    healthCheckPath: /readyz
+    disk:
+      name: covenant-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: TRUST_PROXY
+        value: "1"
+      - key: LOG_FORMAT
+        value: json
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: PUBLIC_URL
+        sync: false
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET
@@ -18,15 +36,13 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5-5
       - key: KERNEL_API_KEY
         sync: false
       - key: AG_STUDIO_LICENSE
         sync: false
       - key: NOTIFY_WEBHOOK_URL
         sync: false
-      - key: PUBLIC_URL
-        sync: false
-      - key: ANTHROPIC_MODEL
-        value: claude-sonnet-5-5
       - key: AUTO_RELEASE_THRESHOLD
         value: "0.8"

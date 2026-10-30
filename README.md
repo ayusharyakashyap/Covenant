@@ -152,7 +152,7 @@ npm run build
 npm start            # http://localhost:8787
 ```
 
-That runs with the PayPal simulator and offline rules. To use the real PayPal sandbox and Claude:
+That runs in test mode (PayPal simulated, rules engine instead of Claude) and says so in the footer. `npm run demo` does the same but also enables **Add sample contracts** on the Money page. To use the real PayPal sandbox and Claude:
 
 ```bash
 cp .env.example .env   # then fill in the keys below
@@ -169,18 +169,22 @@ npm start
 
 You can watch every capture and payout land in the sandbox accounts at [sandbox.paypal.com](https://www.sandbox.paypal.com).
 
-### Try the demo flow
+### Try it as two people
 
-1. Click **Logo design**, then **Compile contract**.
-2. As the client, click **Sign as client**. Switch to the freelancer tab (top right), then **Sign as freelancer**.
-3. Switch back to the client and fund with PayPal.
-4. As the freelancer, open **or try a sample → Only two concepts** and submit. It's rejected with reasons. Submit **Three logo concepts**: verified and paid.
-5. For milestone 2, try **Files with a hidden instruction**. Covenant ignores the injected instruction, notices the SVG is missing, and holds the money for the client.
-6. As the client, **Open a dispute**, add both statements and **Ask the arbiter to rule**.
+Client and freelancer are separate people with separate access, so use **two browsers** (or one normal window and one private window).
+
+1. **Client window:** click **Logo design**, then **Compile contract**. Copy the one-time **invite link** from the right-hand panel and click **Sign as client**.
+2. **Freelancer window:** open the invite link. Confirm the payout email and **Sign as freelancer**.
+3. **Client window:** fund with PayPal. The money is now held, not sent.
+4. **Freelancer window:** download the [sample files](public/demo) (also linked in the app footer) and upload two concepts. They're rejected with reasons. Upload all three and they're verified; with Claude configured the milestone pays out automatically.
+5. For milestone 2, upload `brightside-final.png` with `handoff-notes.txt`. Covenant ignores the hidden instruction aimed at the AI, notices the SVG is missing, and holds the money for the client.
+6. Either side can **Open a dispute**; after both statements, **Ask the arbiter to rule**.
+
+Both windows update live as money moves.
 
 ### Explore the Money dashboard
 
-Open **Money** in the top bar and click **Add sample contracts** to load six contracts in every state (paid, held, late with a penalty, disputed, reclaimed, awaiting signature). They're generated with the simulator, so they never touch real sandbox funds. Then try **Ask**, the **Timeline** tab, and **Build a report in AG Studio**.
+Start with `npm run demo`, open **Money** in the top bar and click **Add sample contracts** to load six contracts in every state (paid, held, late with a penalty, disputed, reclaimed, awaiting signature). They're generated with the simulator, so they never touch real sandbox funds. Then try **Ask**, the **Timeline** tab, and **Build a report in AG Studio**.
 
 ### Use it from an AI agent (MCP)
 
@@ -207,7 +211,7 @@ The repo includes [`render.yaml`](render.yaml). In Render: **New → Blueprint**
 ### Tests
 
 ```bash
-npm test        # money math + full lifecycle (sign → fund → reject → verify → injection → approve → final capture; disputes; permissions)
+npm test        # 19 tests: money math, full lifecycle with background verification, invites and access control, and HTTP security against a running server
 npm run eval    # verifier accuracy on 24 labelled cases (uses Claude if configured)
 npm run typecheck
 ```
@@ -215,6 +219,8 @@ npm run typecheck
 In Postman, import `postman/Covenant.postman_collection.json` and run it with the Collection Runner against a running server.
 
 ## Architecture
+
+The full system design (request pipeline, access model, money safety, background jobs, storage, scaling out behind a load balancer, threat model, observability) is in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ```
 server/
@@ -228,7 +234,11 @@ server/
   portfolio.ts    Money dashboard data + the Ask assistant
   notify.ts       Outbound webhooks (Zapier)
   seed.ts         Sample portfolio, generated with the simulator
-  store.ts        JSON-file store with per-contract locks
+  store.ts        SQLite (WAL) storage with migrations and indexed PayPal references
+  jobs.ts         Durable background job queue (verification, payout status)
+  access.ts       Hashed keys, one-time invites, signed live-update tickets
+  http.ts         Security headers, rate limits, body limits
+  log.ts          Structured JSON logs
   ai/             compiler, verifier, arbiter (Claude) + offline rules engine
 web/              React 19 app bundled by esbuild
 mcp/server.ts     MCP stdio server for agents
@@ -239,13 +249,13 @@ public/demo/      Sample evidence used by the "try a sample" menu
 
 The dependency list is deliberately short (React, esbuild, tsx): PayPal and Claude are called with `fetch`, the server is Node's built-in `http`, and AG Grid, AG Studio, Bryntum and the PayPal JS SDK load from their official CDNs.
 
-**Security notes.** Each contract has separate payer and payee keys; the server enforces who may do what (only the payer funds, approves or reclaims; only the payee submits evidence). Uploaded files are served with a sandboxing CSP. Evidence links to private networks are refused. Signatures reset whenever terms change.
+**Production notes.** Client and freelancer get separate keys (the freelancer's through a one-time invite), stored only as hashes. Every state-changing request is JSON-only (CSRF guard), rate limited, size limited and idempotent with an `Idempotency-Key`. Verification runs in a durable background queue with retries and crash recovery. The server sends a strict Content Security Policy, drains gracefully on `SIGTERM`, and exposes `/healthz` and `/readyz` for load balancers. A `Dockerfile`, a GitHub Actions workflow and a Render blueprint with a persistent disk are included.
 
 ## Limitations and what's next
 
 - **Platform model.** For a hackathon prototype the platform's sandbox merchant captures funds and pays the freelancer with Payouts. In production this would use **PayPal Multiparty / Commerce Platform** so the freelancer is the merchant of record and the platform takes a fee via `platform_fees`.
 - **Long contracts.** Authorizations are valid for 29 days. Longer deals would use PayPal Vault with a saved payment method and authorize each milestone closer to its deadline.
-- **Storage.** The JSON store is single-instance; production would use Postgres.
+- **Storage.** SQLite runs a single instance; running several behind a load balancer means moving to Postgres, object storage and Redis, as described in [ARCHITECTURE.md](docs/ARCHITECTURE.md#7-scaling-out).
 - **Arbitration.** The arbiter is designed for small disputes and is explicit about its reasoning. Larger amounts should allow escalation to a human mediator.
 
 ## License

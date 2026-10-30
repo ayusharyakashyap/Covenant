@@ -38,7 +38,7 @@ export function PayPalFund({ c, payerKey, onFunded }: { c: ContractView; payerKe
             onApprove: async (data: { orderID: string }) => {
               setState("busy");
               try {
-                const next = await api.act(c.id, payerKey, "/paypal/authorize", { orderId: data.orderID });
+                const next = await api.act(c.id, payerKey, "/paypal/authorize", { orderId: data.orderID }, `authorize-${data.orderID}`);
                 onFunded(next);
                 toast(`${money(c.totalCents, c.currency)} is now held by PayPal.`);
               } catch (e) {
@@ -68,7 +68,7 @@ export function PayPalFund({ c, payerKey, onFunded }: { c: ContractView; payerKe
     setState("busy");
     try {
       const { orderId } = await api.order(c.id, payerKey);
-      const next = await api.act(c.id, payerKey, "/paypal/authorize", { orderId });
+      const next = await api.act(c.id, payerKey, "/paypal/authorize", { orderId }, `authorize-${orderId}`);
       onFunded(next);
       toast(`${money(c.totalCents, c.currency)} is now held (simulated).`);
     } catch (e) {
@@ -82,9 +82,9 @@ export function PayPalFund({ c, payerKey, onFunded }: { c: ContractView; payerKe
     return (
       <div className="paypal-box">
         <div className="sim-pay">
-          <p>PayPal keys aren't configured on this server, so funding is simulated with the same order → authorize flow the sandbox uses. Add sandbox keys to fund with a real PayPal sandbox buyer.</p>
+          <p>Test mode: this server has no PayPal sandbox keys yet, so the hold is simulated with the same order and authorization steps PayPal uses.</p>
           <button className="btn held" onClick={simulate} disabled={state === "busy"}>
-            {state === "busy" ? "Placing hold…" : `Hold ${money(c.totalCents, c.currency)} (simulated PayPal)`}
+            {state === "busy" ? "Placing hold…" : `Hold ${money(c.totalCents, c.currency)}`}
           </button>
         </div>
       </div>

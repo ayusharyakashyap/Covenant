@@ -18,7 +18,7 @@ const MIME: Record<string, string> = {
 async function http(method: string, path: string, key?: string, body?: unknown) {
   const res = await fetch(BASE + path, {
     method,
-    headers: { "Content-Type": "application/json", ...(key ? { "x-covenant-key": key } : {}) },
+    headers: { "Content-Type": "application/json", ...(key ? { "x-covenant-key": key } : {}), ...(method === "POST" ? { "Idempotency-Key": crypto.randomUUID() } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = (await res.json().catch(() => ({}))) as any;
@@ -48,7 +48,7 @@ const tools = [
   {
     name: "create_covenant",
     description:
-      "Compile a plain-English payment agreement into an escrowed Covenant contract settled on PayPal. Returns the contract, plus a payer link (for the human who funds it on PayPal) and a payee link/key (for whoever delivers the work). Use this when hiring someone or another agent for a task with clear deliverables.",
+      "Compile a plain-English payment agreement into an escrowed Covenant contract settled on PayPal. Returns the contract, the payer's key and a link for the human who funds it on PayPal, plus a one-time invite for whoever delivers the work (a person or another agent, who calls join_covenant). Use this when hiring someone or another agent for a task with clear deliverables.",
     inputSchema: {
       type: "object",
       required: ["deal"],
@@ -59,6 +59,11 @@ const tools = [
         payer_name: { type: "string" },
       },
     },
+  },
+  {
+    name: "join_covenant",
+    description: "Accept a Covenant invite as the payee (the party delivering the work). Returns your own payee key; the invite can't be used again.",
+    inputSchema: { type: "object", required: ["contract_id", "invite_code"], properties: { contract_id: { type: "string" }, invite_code: { type: "string" } } },
   },
   {
     name: "get_covenant",
@@ -112,11 +117,15 @@ async function callTool(name: string, a: any): Promise<string> {
         describe(c),
         "",
         `contract_id: ${c.id}`,
-        `payer_key: ${r.keys.payer}`,
-        `payee_key: ${r.keys.payee}`,
-        `Payer link (sign and fund with PayPal — a human must approve): ${BASE}/c/${c.id}?k=${r.keys.payer}`,
-        `Payee link: ${BASE}/c/${c.id}?k=${r.keys.payee}`,
+        `payer_key: ${r.payerKey}   (keep secret: it controls the money)`,
+        `invite_code: ${r.inviteCode}   (one-time; give it to the payee)`,
+        `Payer: open ${BASE}/c/${c.id} after adding the payer key, or use the web app that created it. A human must approve the PayPal hold.`,
+        `Payee invite link: ${BASE}/join/${c.id}#${r.inviteCode}`,
       ].join("\n");
+    }
+    case "join_covenant": {
+      const r = await http("POST", `/api/contracts/${a.contract_id}/join`, undefined, { code: a.invite_code });
+      return `Joined as payee.\npayee_key: ${r.payeeKey}   (keep secret)\n${describe(r.contract)}`;
     }
     case "get_covenant": {
       const r = await http("GET", `/api/contracts/${a.contract_id}`, a.key);

@@ -1,6 +1,5 @@
 // The contract state machine. Every money movement goes through here, in deterministic code.
 import { nanoid } from "./id.ts";
-import { randomBytes } from "node:crypto";
 import { config } from "./config.ts";
 import { store, withLock } from "./store.ts";
 import { paypal, PayPalError } from "./paypal.ts";
@@ -9,6 +8,8 @@ import { verifyMilestone } from "./ai/verifier.ts";
 import { arbitrate } from "./ai/arbiter.ts";
 import { settle, feeSplit, reconcile, toCents, fmt } from "./money.ts";
 import { notify } from "./notify.ts";
+import { newSecret, hashSecret, inviteMatches } from "./access.ts";
+import { enqueue, registerJob } from "./jobs.ts";
 import { storeUpload, linkEvidence, textEvidence, type UploadInput } from "./evidence.ts";
 import type { Actor, Contract, LedgerEntry, Milestone, Role, Party } from "../shared/types.ts";
 
@@ -87,15 +88,48 @@ export async function createContract(text: string, opts: { payer?: Partial<Party
     ledger: [],
     compiledBy: { engine, model },
     autoReleaseThreshold: config.autoReleaseThreshold,
-    tokens: { payer: randomBytes(12).toString("base64url"), payee: randomBytes(12).toString("base64url") },
+    access: { payerHash: "", inviteHash: "" },
     origin: opts.origin ?? "web",
   };
   if (validEmail(c.payee.email)) c.ambiguities = c.ambiguities.filter((a) => !/paypal email|email address|be paid at/i.test(a));
   if (r.currency && r.currency.toUpperCase() !== config.paypal.currency) {
     c.ambiguities.push(`The deal mentions ${r.currency}; this deployment settles in ${config.paypal.currency}.`);
   }
+  const payerKey = newSecret();
+  const inviteCode = newSecret();
+  c.access = { payerHash: hashSecret(payerKey), inviteHash: hashSecret(inviteCode), inviteCreatedAt: now() };
   event(c, "ai", "compiled", `Compiled into ${c.milestones.length} milestone${c.milestones.length > 1 ? "s" : ""} worth ${fmt(c.totalCents, c.currency)}${engine === "claude" ? ` by ${model}` : " by the offline rules engine"}.`);
-  return store.save(c);
+  store.save(c);
+  // Raw secrets are returned once, to the creator, and never stored.
+  return { contract: c, payerKey, inviteCode };
+}
+
+/** The freelancer opens their invite: issue their own key and burn the invite. */
+export function claimInvite(id: string, code: string) {
+  return withLock(id, async () => {
+    const c = mustGet(id);
+    if (c.access.payeeHash && !c.access.inviteHash) throw new HttpError(410, `This invite has already been used. Ask ${c.payer.name} to send a new one if you need access.`);
+    if (!inviteMatches(c, code)) throw new HttpError(403, "This invite link isn't valid. Ask for a new one.");
+    const payeeKey = newSecret();
+    c.access = { ...c.access, payeeHash: hashSecret(payeeKey), inviteHash: undefined, joinedAt: now() };
+    event(c, "payee", "joined", `${c.payee.name} opened the invite and joined the contract.`);
+    store.save(c);
+    return { contract: c, payeeKey };
+  });
+}
+
+/** The client issues a fresh invite (e.g. sent to the wrong person). Revokes any earlier invite and any freelancer access not yet used to sign. */
+export function reissueInvite(id: string, role: Role | null) {
+  return withLock(id, async () => {
+    const c = mustGet(id);
+    requireRole(role, "payer");
+    if (c.signatures.payee) throw new HttpError(409, `${c.payee.name} has already signed; their access can't be replaced.`);
+    const inviteCode = newSecret();
+    c.access = { payerHash: c.access.payerHash, inviteHash: hashSecret(inviteCode), inviteCreatedAt: now() };
+    event(c, "payer", "invite_reissued", `${c.payer.name} issued a new invite link. Earlier links no longer work.`);
+    store.save(c);
+    return { contract: c, inviteCode };
+  });
 }
 
 export function updateDraft(id: string, role: Role | null, patch: { payer?: Partial<Party>; payee?: Partial<Party>; autoReleaseThreshold?: number }) {
@@ -128,6 +162,8 @@ export function sign(id: string, role: Role | null) {
     const c = mustGet(id);
     requireRole(role, "payer", "payee");
     if (c.status !== "draft") throw new HttpError(409, "This contract is already signed.");
+    if (c.signatures[role]) throw new HttpError(409, "You've already signed this contract.");
+    if (role === "payee" && !c.access.payeeHash) throw new HttpError(409, "Join through your invite link before signing.");
     if (role === "payee" && !validEmail(c.payee.email)) throw new HttpError(400, "Add the PayPal email you'll be paid at before signing.");
     c.signatures[role] = now();
     event(c, role, "signed", `${role === "payer" ? c.payer.name : c.payee.name} signed the agreement.`);
@@ -194,47 +230,83 @@ export function submitEvidence(id: string, role: Role | null, mid: string, input
     const m = milestone(c, mid);
     if (!["open", "rejected"].includes(m.status)) throw new HttpError(409, `This milestone is ${m.status.replace("_", " ")}.`);
     const files = (input.files ?? []).slice(0, 12);
-    const links = (input.links ?? []).map((l) => l.trim()).filter(Boolean).slice(0, 6);
+    const links = (input.links ?? []).map((l) => String(l).trim()).filter(Boolean).slice(0, 6);
     if (!files.length && !links.length && !(input.note ?? "").trim()) throw new HttpError(400, "Attach files, links or a note as evidence.");
 
-    const items = [
-      ...files.map((f) => storeUpload(c.id, f)),
-      ...(await Promise.all(links.map((l) => linkEvidence(l, c.id)))).flat(),
-      ...((input.note ?? "").trim().length > 0 ? [textEvidence(input.note!.trim())] : []),
-    ];
-    const sub = { id: `sub_${nanoid(6)}`, at: now(), note: (input.note ?? "").trim().slice(0, 4000), items };
+    const items = [...files.map((f) => storeUpload(c.id, f)), ...((input.note ?? "").trim().length > 0 ? [textEvidence(input.note!.trim())] : [])];
+    const sub = { id: `sub_${nanoid(6)}`, at: now(), note: (input.note ?? "").trim().slice(0, 4000), items, pendingLinks: links.length ? links : undefined };
     m.submissions.push(sub);
     m.status = "verifying";
-    event(c, "payee", "submitted", `${c.payee.name} submitted ${items.length} piece${items.length === 1 ? "" : "s"} of evidence for "${m.title}".`, m.id);
+    const count = files.length + links.length + (sub.note ? 1 : 0);
+    event(c, "payee", "submitted", `${c.payee.name} submitted ${count} piece${count === 1 ? "" : "s"} of evidence for "${m.title}".`, m.id);
     store.save(c);
-
-    let verdict;
-    try {
-      verdict = await verifyMilestone(c, m, sub);
-    } catch (e) {
-      m.status = "needs_review";
-      event(c, "system", "verifier_error", `The verifier couldn't finish (${e instanceof Error ? e.message : "unknown error"}). ${c.payer.name} can review manually.`, m.id);
-      return store.save(c);
-    }
-    const { injection, injectionNote, ...v } = verdict;
-    m.verdict = v;
-    const who = v.engine === "claude" ? "Claude" : "The rules engine";
-    if (injection) {
-      event(c, "ai", "injection_blocked", `${who} found instructions aimed at the verifier inside the evidence and ignored them. ${injectionNote ?? ""}`.trim(), m.id);
-    }
-    if (v.outcome === "pass") {
-      event(c, "ai", "verified", `${who} verified every condition (lowest confidence ${(v.confidence * 100).toFixed(0)}%). Releasing funds.`, m.id);
-      await release(c, m, 100, "verifier");
-    } else if (v.outcome === "fail") {
-      m.status = "rejected";
-      event(c, "ai", "rejected", `${who} found unmet conditions: ${v.summary}`, m.id);
-    } else {
-      m.status = "needs_review";
-      event(c, "ai", "needs_review", `${who} isn't confident enough to release on its own. ${c.payer.name} decides. ${v.summary}`, m.id);
-    }
-    return store.save(c);
+    // Verification runs in the background; both parties' screens update when it finishes.
+    enqueue("verify", c.id, { contractId: c.id, milestoneId: m.id, submissionId: sub.id });
+    return c;
   });
 }
+
+/** Background job: gather link evidence, run the verifier, then apply the verdict. */
+registerJob("verify", async ({ contractId, milestoneId, submissionId }, job) => {
+  const current = () => {
+    const c = store.get(contractId);
+    const m = c?.milestones.find((x) => x.id === milestoneId);
+    const sub = m?.submissions.at(-1);
+    return c && m && sub && sub.id === submissionId && m.status === "verifying" ? { c, m, sub } : null;
+  };
+  if (!current()) return; // superseded or already decided
+
+  try {
+    // 1. Links (GitHub API, Kernel cloud browser) can take a while: fetch outside the lock.
+    const pending = current()!.sub.pendingLinks ?? [];
+    if (pending.length) {
+      const fetched = (await Promise.all(pending.map((l) => linkEvidence(l, contractId)))).flat();
+      await withLock(contractId, async () => {
+        const s = current();
+        if (!s) return;
+        s.sub.items.push(...fetched);
+        delete s.sub.pendingLinks;
+        store.save(s.c);
+      });
+    }
+
+    // 2. Verify against a snapshot, outside the lock.
+    const snap = current();
+    if (!snap) return;
+    const verdict = await verifyMilestone(snap.c, snap.m, snap.sub);
+
+    // 3. Apply under the lock, only if nothing changed meanwhile.
+    await withLock(contractId, async () => {
+      const s = current();
+      if (!s) return;
+      const { c, m } = s;
+      const { injection, injectionNote, ...v } = verdict;
+      m.verdict = v;
+      const who = v.engine === "claude" ? "Claude" : "The rules engine";
+      if (injection) event(c, "ai", "injection_blocked", `${who} found instructions aimed at the verifier inside the evidence and ignored them. ${injectionNote ?? ""}`.trim(), m.id);
+      if (v.outcome === "pass") {
+        event(c, "ai", "verified", `${who} verified every condition (lowest confidence ${(v.confidence * 100).toFixed(0)}%). Releasing funds.`, m.id);
+        await release(c, m, 100, "verifier");
+      } else if (v.outcome === "fail") {
+        m.status = "rejected";
+        event(c, "ai", "rejected", `${who} found unmet conditions: ${v.summary}`, m.id);
+      } else {
+        m.status = "needs_review";
+        event(c, "ai", "needs_review", `${who} isn't confident enough to release on its own. ${c.payer.name} decides. ${v.summary}`, m.id);
+      }
+      store.save(c);
+    });
+  } catch (e) {
+    if (job.attempts < job.maxAttempts) throw e; // retried with backoff
+    await withLock(contractId, async () => {
+      const s = current();
+      if (!s) return;
+      s.m.status = "needs_review";
+      event(s.c, "system", "verifier_error", `The verifier couldn't finish (${e instanceof Error ? e.message : "unknown error"}). ${s.c.payer.name} can review manually.`, s.m.id);
+      store.save(s.c);
+    });
+  }
+});
 
 export function review(id: string, role: Role | null, mid: string, decision: "approve" | "reject", note?: string) {
   return withLock(id, async () => {
@@ -335,20 +407,15 @@ async function closeOut(c: Contract) {
 }
 
 function schedulePayoutCheck(cid: string, mid: string, batchId: string) {
-  if (!paypal().live) {
-    setTimeout(() => updatePayoutStatus(cid, mid, batchId, "SUCCESS"), 2500);
-    return;
-  }
-  for (const delay of [8000, 30000]) {
-    setTimeout(async () => {
-      try {
-        updatePayoutStatus(cid, mid, batchId, await paypal().payoutStatus(batchId));
-      } catch {
-        /* webhook will catch up */
-      }
-    }, delay);
-  }
+  enqueue("payout_status", cid, { contractId: cid, milestoneId: mid, batchId }, { delayMs: paypal().live ? 8000 : 0, maxAttempts: 6 });
 }
+
+registerJob("payout_status", async ({ contractId, milestoneId, batchId }, job) => {
+  const status = paypal().live ? await paypal().payoutStatus(batchId) : "SUCCESS";
+  await updatePayoutStatus(contractId, milestoneId, batchId, status);
+  // PENDING/PROCESSING: check again later (exponential backoff); webhooks may also update it first.
+  if (["PENDING", "PROCESSING", "NEW"].includes(status) && job.attempts < job.maxAttempts) throw new Error(`payout ${status}`);
+});
 
 export function updatePayoutStatus(cid: string, mid: string | undefined, batchId: string, status: string) {
   return withLock(cid, async () => {
@@ -463,21 +530,17 @@ export function cancel(id: string, role: Role | null) {
 
 export async function handleWebhook(evt: { event_type: string; resource: Record<string, any> }) {
   const r = evt.resource ?? {};
-  const type = evt.event_type;
-  const findContract = () =>
-    store.list().find((c) => c.ledger.some((l) => l.reference === r.id || l.reference === r.payout_batch_id) || c.funding?.authorizationId === r.id || c.funding?.orderId === r.supplementary_data?.related_ids?.order_id);
-  const c = findContract();
-  if (!c) return false;
-  await withLock(c.id, async () => {
-    const fresh = store.get(c.id)!;
-    const entry = fresh.ledger.find((l) => l.reference === r.id || (r.payout_batch_id && l.reference === r.payout_batch_id));
-    if (entry && r.status) entry.status = String(r.status);
-    if (type.startsWith("PAYMENT.PAYOUTS-ITEM") && r.payout_batch_id) {
-      const e2 = fresh.ledger.find((l) => l.reference === r.payout_batch_id);
-      if (e2) e2.status = String(r.transaction_status ?? type.split(".").pop());
-    }
-    event(fresh, "paypal", "webhook", `PayPal webhook: ${type}`);
-    store.save(fresh);
+  const type = String(evt.event_type ?? "");
+  const refs = [r.id, r.payout_batch_id, r.supplementary_data?.related_ids?.order_id, r.supplementary_data?.related_ids?.authorization_id].filter(Boolean);
+  const found = refs.map((x) => store.byPayPalRef(String(x))).find(Boolean);
+  if (!found) return false;
+  await withLock(found.id, async () => {
+    const c = store.get(found.id)!;
+    const entry = c.ledger.find((l) => l.reference === r.id || (r.payout_batch_id && l.reference === r.payout_batch_id));
+    if (type.startsWith("PAYMENT.PAYOUTS-ITEM") && entry) entry.status = String(r.transaction_status ?? type.split(".").pop());
+    else if (entry && r.status) entry.status = String(r.status);
+    event(c, "paypal", "webhook", `PayPal webhook: ${type}`);
+    store.save(c);
   });
   return true;
 }

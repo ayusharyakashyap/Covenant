@@ -1,6 +1,7 @@
 // Portfolio analytics across every contract the caller holds a key for,
 // plus "Ask": Claude answers a question about the money and returns a grid view to show it.
 import { store } from "./store.ts";
+import { roleForKey } from "./access.ts";
 import { claudeLive, config } from "./config.ts";
 import { callTool } from "./ai/claude.ts";
 import type { Contract } from "../shared/types.ts";
@@ -50,7 +51,7 @@ export function portfolio(pairs: Pair[]) {
   for (const { id, key } of pairs.slice(0, 200)) {
     const c = store.get(id);
     if (!c) continue;
-    const role = key === c.tokens.payer ? "payer" : key === c.tokens.payee ? "payee" : null;
+    const role = roleForKey(c, key);
     if (!role) continue;
     const funded = Boolean(c.funding?.authorizationId) && c.status !== "cancelled";
     let paid = 0;

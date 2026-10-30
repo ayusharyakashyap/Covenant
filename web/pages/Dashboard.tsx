@@ -143,7 +143,7 @@ export function Dashboard() {
           <p className="muted">Everything Covenant holds, pays and returns for you on PayPal, in one place.</p>
         </div>
         <div className="dash-actions">
-          <button className="btn ghost small" onClick={seed} disabled={seeding}>{seeding ? "Adding…" : "Add sample contracts"}</button>
+          {cfg?.demoTools && <button className="btn ghost small" onClick={seed} disabled={seeding}>{seeding ? "Adding…" : "Add sample contracts"}</button>}
           <button className="btn ghost small" onClick={() => setStudio(true)} disabled={!data.milestones.length}>Build a report in AG Studio</button>
         </div>
       </section>
@@ -193,7 +193,7 @@ export function Dashboard() {
         </div>
         {data.milestones.length === 0 ? (
           <p className="muted" style={{ marginTop: 16 }}>
-            No contracts on this device yet. <Link to="/">Write one</Link>, or add sample contracts to explore the dashboard.
+            No contracts on this device yet. <Link to="/">Write one</Link> and it will appear here.
           </p>
         ) : tab === "timeline" ? (
           <Timeline contracts={data.contracts as any} milestones={data.milestones as any} />

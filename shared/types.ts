@@ -53,6 +53,7 @@ export interface Submission {
   at: string;
   note: string;
   items: EvidenceItem[];
+  pendingLinks?: string[]; // fetched by the background verifier
 }
 
 export interface ConditionFinding {
@@ -176,7 +177,8 @@ export interface Contract {
   ledger: LedgerEntry[];
   compiledBy: { engine: "claude" | "offline"; model?: string };
   autoReleaseThreshold: number; // verifier confidence required to release without a human
-  tokens: { payer: string; payee: string };
+  // Hashes only. Raw keys are shown once to their owner and never stored.
+  access: { payerHash: string; payeeHash?: string; inviteHash?: string; inviteCreatedAt?: string; joinedAt?: string };
   origin?: "web" | "mcp";
 }
 
@@ -185,4 +187,6 @@ export interface PublicConfig {
   ai: { engine: "claude" | "offline"; model?: string };
   kernel: boolean;
   agStudioLicense?: string;
+  demoTools: boolean;
+  webhooks: boolean;
 }

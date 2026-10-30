@@ -46,9 +46,9 @@ export function Home() {
     if (busy) return;
     setBusy(true);
     try {
-      const { contract, keys } = await api.compile(text);
-      keyring.set(contract.id, "payer", keys.payer);
-      keyring.set(contract.id, "payee", keys.payee);
+      const { contract, payerKey, inviteCode } = await api.compile(text);
+      keyring.set(contract.id, "payer", payerKey);
+      keyring.set(contract.id, "invite", inviteCode);
       navigate(`/c/${contract.id}?fresh=1`);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Couldn't compile that deal.", true);

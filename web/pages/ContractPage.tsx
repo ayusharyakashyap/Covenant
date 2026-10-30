@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, keyring, money, day, type ContractView } from "../api.ts";
+import { api, keyring, money, day, inviteLink, type ContractView } from "../api.ts";
 import { Link, navigate, useToast } from "../app.tsx";
 import { Guilloche } from "../components/Guilloche.tsx";
 import { MilestoneCard } from "../components/Milestone.tsx";
@@ -15,43 +15,52 @@ export function ContractPage({ id }: { id: string }) {
   const [keys, setKeys] = useState(keyring.get(id));
   const params = new URLSearchParams(location.search);
   const fresh = params.get("fresh") === "1";
-  const [role, setRole] = useState<Role>((params.get("as") as Role) || (keys.payer ? "payer" : "payee"));
+  // One browser normally holds one side's key. Both only exist for sample data.
+  const [role, setRole] = useState<Role>(keys.payer ? "payer" : "payee");
 
-  // Accept a shared link (?k=...) and remember which side it belongs to.
   useEffect(() => {
-    const k = params.get("k");
-    const tryKey = k || keys[role] || keys.payer || keys.payee;
-    if (!tryKey) {
-      setError("This link is missing its access key. Ask the person who shared it for the full link.");
+    const k = keys[role] || keys.payer || keys.payee;
+    if (!k) {
+      setError("You don't have access to this contract in this browser. Open the link you were sent, or ask the other party to send a new invite.");
       return;
     }
-    api
-      .get(id, tryKey)
-      .then(({ contract, role: r }) => {
-        if (k) {
-          keyring.set(id, r, k);
-          setKeys(keyring.get(id));
-          setRole(r);
-          history.replaceState(null, "", `/c/${id}`);
-        }
-        setC(contract);
-      })
-      .catch((e) => setError(e.message));
+    api.get(id, k).then(({ contract }) => setC(contract)).catch((e) => setError(e.message));
   }, [id]);
 
-  // Live updates: both parties see money move the moment it happens.
+  // Live updates over SSE, authorized by a short-lived signed ticket (keys never go in URLs).
   useEffect(() => {
     const k = keys.payer || keys.payee;
     if (!k || !c) return;
-    const es = new EventSource(`/api/contracts/${id}/stream?k=${encodeURIComponent(k)}`);
-    es.onmessage = (e) => {
+    let es: EventSource | null = null;
+    let closed = false;
+    let retry: number | undefined;
+    const open = async () => {
       try {
-        setC(JSON.parse(e.data));
+        const { ticket } = await api.ticket(id, k);
+        if (closed) return;
+        es = new EventSource(`/api/contracts/${id}/stream?ticket=${encodeURIComponent(ticket)}`);
+        es.onmessage = (e) => {
+          try {
+            const next = JSON.parse(e.data) as ContractView;
+            setC((prev) => (!prev || next.updatedAt >= prev.updatedAt ? next : prev));
+          } catch {
+            /* ignore malformed frame */
+          }
+        };
+        es.onerror = () => {
+          es?.close();
+          if (!closed) retry = window.setTimeout(open, 3000); // fresh ticket on reconnect
+        };
       } catch {
-        /* ignore */
+        if (!closed) retry = window.setTimeout(open, 5000);
       }
     };
-    return () => es.close();
+    open();
+    return () => {
+      closed = true;
+      es?.close();
+      window.clearTimeout(retry);
+    };
   }, [id, !!c, keys.payer, keys.payee]);
 
   const keyFor = (r: Role) => keys[r] ?? "";
@@ -79,9 +88,9 @@ export function ContractPage({ id }: { id: string }) {
   const stepIndex = { draft: 0, awaiting_funding: 1, active: 2, completed: 4, cancelled: 4 }[c.status] + (c.status === "active" && c.milestones.every((m) => ["released", "refunded"].includes(m.status)) ? 1 : 0);
   const steps = ["Both parties sign", "Client funds on PayPal", "Work is delivered and verified", "Milestones paid out", "Complete"];
   const both = Boolean(keys.payer && keys.payee);
-  const shareUrl = keys.payee ? `${location.origin}/c/${c.id}?k=${keys.payee}` : "";
 
-  const update = (next: ContractView) => setC(next);
+  // Responses and live updates can arrive in either order; never replace newer state with older.
+  const update = (next: ContractView) => setC((prev) => (!prev || next.updatedAt >= prev.updatedAt ? next : prev));
   async function act(path: string, body: unknown, done: string, asRole: Role = role) {
     try {
       update(await api.act(c!.id, keyFor(asRole), path, body));
@@ -184,16 +193,7 @@ export function ContractPage({ id }: { id: string }) {
         </div>
 
         <aside>
-          {shareUrl && role === "payer" && c.status !== "completed" && (
-            <div className="panel">
-              <h2>Freelancer's link</h2>
-              <p className="faint" style={{ marginTop: -4 }}>Send this to {c.payee.name}. It lets them sign, upload work and get paid.</p>
-              <div className="share">
-                <input readOnly value={shareUrl} aria-label="Freelancer link" onFocus={(e) => e.target.select()} />
-                <button className="btn ghost small" onClick={() => navigator.clipboard?.writeText(shareUrl).then(() => toast("Link copied."))}>Copy</button>
-              </div>
-            </div>
-          )}
+          {role === "payer" && c.status === "draft" && <InvitePanel c={c} payerKey={keyFor("payer")} onChange={update} />}
           <Activity c={c} />
         </aside>
       </div>
@@ -329,6 +329,57 @@ function NextStep({ c, role, keyFor, onChange, act }: { c: ContractView; role: R
     <div className="panel action warn">
       <h2>Cancelled</h2>
       <p className="muted">This contract was cancelled{c.funding?.status === "voided" ? " and the PayPal hold was released" : ""}.</p>
+    </div>
+  );
+}
+
+
+/** The client shares a one-time invite. Claiming it gives the freelancer their own key. */
+function InvitePanel({ c, payerKey, onChange }: { c: ContractView; payerKey: string; onChange: (c: ContractView) => void }) {
+  const toast = useToast();
+  const [code, setCode] = useState(keyring.get(c.id).invite ?? "");
+  const [busy, setBusy] = useState(false);
+  const link = code ? inviteLink(c.id, code) : "";
+
+  async function reissue() {
+    if (c.access.joined && !confirm(`${c.payee.name} has already joined. A new invite removes their access until they open the new link. Continue?`)) return;
+    setBusy(true);
+    try {
+      const r = await api.invite(c.id, payerKey);
+      keyring.set(c.id, "invite", r.inviteCode);
+      setCode(r.inviteCode);
+      onChange(r.contract);
+      toast("New invite link created. Earlier links no longer work.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't create an invite.", true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (c.access.joined) {
+    return (
+      <div className="panel">
+        <h2>{c.payee.name} has joined</h2>
+        <p className="faint" style={{ marginTop: -4 }}>They have their own access to this contract. Their invite link can't be used again.</p>
+        {!c.signatures.payee && <button className="linkbtn" onClick={reissue} disabled={busy}>Invited the wrong person? Create a new invite</button>}
+      </div>
+    );
+  }
+  return (
+    <div className="panel">
+      <h2>Invite {c.payee.name === "Freelancer" ? "the freelancer" : c.payee.name}</h2>
+      <p className="faint" style={{ marginTop: -4 }}>
+        Send this one-time link. Opening it gives them their own access to sign, deliver work and get paid. To try both sides yourself, open it in a different browser or a private window.
+      </p>
+      {link ? (
+        <div className="share">
+          <input readOnly value={link} aria-label="Invite link" onFocus={(e) => e.target.select()} />
+          <button className="btn ghost small" onClick={() => navigator.clipboard?.writeText(link).then(() => toast("Invite link copied."))}>Copy</button>
+        </div>
+      ) : (
+        <button className="btn ghost small" onClick={reissue} disabled={busy}>Create invite link</button>
+      )}
     </div>
   );
 }

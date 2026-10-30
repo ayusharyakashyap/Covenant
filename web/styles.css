@@ -340,3 +340,15 @@ footer.foot { margin-top: 72px; padding-top: 18px; border-top: 1px solid var(--r
 .tl-bar.disputed, .tl-bar.rejected, .tl-bar.needs_review { background: var(--alert); }
 .tl-now { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--focus); z-index: 1; }
 @media (max-width: 640px) { .tl-row { grid-template-columns: 1fr; } }
+
+/* ---------- footer, status, samples */
+.foot-links { display: flex; gap: 16px; flex-wrap: wrap; align-items: baseline; }
+.foot-links a { color: var(--ink-soft); }
+.testmode { color: var(--held); }
+.status-list { list-style: none; margin: 18px 0 0; padding: 6px 22px; }
+.status-row { display: grid; grid-template-columns: auto 160px 1fr; gap: 12px; align-items: baseline; padding: 12px 0; border-top: 1px solid var(--rule); }
+.status-row:first-child { border-top: 0; }
+.status-list .status-row:has(> a) { grid-template-columns: 240px 1fr; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.dot.on { background: var(--released); } .dot.off { background: var(--held); }
+@media (max-width: 640px) { .status-row, .status-list .status-row:has(> a) { grid-template-columns: auto 1fr; } .status-row .muted { grid-column: 1 / -1; } }

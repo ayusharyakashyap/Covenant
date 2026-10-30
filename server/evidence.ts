@@ -11,6 +11,7 @@ export interface UploadInput { name: string; mime: string; dataBase64: string }
 
 const TEXTY = /^(text\/|application\/(json|xml|javascript))|image\/svg\+xml/;
 const MAX_FILE = 15 * 1024 * 1024;
+const ALLOWED = new Set(["png", "jpeg", "gif", "webp", "pdf", "svg", "csv", "text", "zip"]);
 
 const safeName = (n: string) => n.replace(/[^\w.\-]+/g, "_").slice(-80) || "file";
 
@@ -24,6 +25,10 @@ export function storeUpload(contractId: string, u: UploadInput): EvidenceItem {
   const storedPath = join(dir, fileName);
   writeFileSync(storedPath, buf);
   const facts = fileFacts(buf, u.name);
+  // Accept only formats we can inspect; executables, archives of unknown type etc. are refused.
+  if (!ALLOWED.has(facts.detectedType)) {
+    throw Object.assign(new Error(`${u.name} isn't a supported file type. Upload images, PDFs, SVG, CSV or text files.`), { status: 415 });
+  }
   // Trust the bytes, not the browser's label: a JPEG renamed .png is still a JPEG.
   const sniffed: Record<string, string> = { png: "image/png", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", pdf: "application/pdf", svg: "image/svg+xml", csv: "text/csv", text: "text/plain" };
   const mime = sniffed[facts.detectedType] ?? (u.mime || guessMime(u.name));

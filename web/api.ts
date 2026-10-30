@@ -1,7 +1,7 @@
 import type { Contract, PublicConfig, Role } from "../shared/types.ts";
 
-export type ContractView = Omit<Contract, "tokens">;
-type Keys = Partial<Record<Role, string>>;
+export type ContractView = Omit<Contract, "access"> & { access: { joined: boolean; inviteOutstanding: boolean } };
+type Keys = Partial<Record<Role | "invite", string>>;
 
 const STORE = "covenant.keys.v1";
 
@@ -16,7 +16,7 @@ export const keyring = {
   get(id: string): Keys {
     return this.all()[id] ?? {};
   },
-  set(id: string, role: Role, key: string) {
+  set(id: string, role: Role | "invite", key: string) {
     const all = this.all();
     all[id] = { ...(all[id] ?? {}), [role]: key };
     try {
@@ -32,10 +32,14 @@ export const keyring = {
 
 export class ApiError extends Error {}
 
-async function req<T>(method: string, path: string, key?: string, body?: unknown): Promise<T> {
+async function req<T>(method: string, path: string, key?: string, body?: unknown, idempotencyKey?: string): Promise<T> {
   const res = await fetch(path, {
     method,
-    headers: { "Content-Type": "application/json", ...(key ? { "x-covenant-key": key } : {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(key ? { "x-covenant-key": key } : {}),
+      ...(method === "POST" ? { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() } : {}),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
@@ -45,12 +49,19 @@ async function req<T>(method: string, path: string, key?: string, body?: unknown
 
 export const api = {
   config: () => req<PublicConfig>("GET", "/api/config"),
-  compile: (text: string) => req<{ contract: ContractView; keys: Record<Role, string> }>("POST", "/api/compile", undefined, { text }),
+  compile: (text: string) => req<{ contract: ContractView; payerKey: string; inviteCode: string }>("POST", "/api/compile", undefined, { text }),
+  join: (id: string, code: string) => req<{ contract: ContractView; payeeKey: string }>("POST", `/api/contracts/${id}/join`, undefined, { code }),
+  invite: (id: string, key: string) => req<{ contract: ContractView; inviteCode: string }>("POST", `/api/contracts/${id}/invite`, key, {}),
+  ticket: (id: string, key: string) => req<{ ticket: string }>("POST", `/api/contracts/${id}/stream-ticket`, key, {}),
+  status: () => req<Record<string, any>>("GET", "/api/status"),
   get: (id: string, key: string) => req<{ contract: ContractView; role: Role }>("GET", `/api/contracts/${id}`, key),
-  act: (id: string, key: string, path: string, body: unknown = {}) =>
-    req<{ contract: ContractView }>("POST", `/api/contracts/${id}${path}`, key, body).then((r) => r.contract),
+  /** Money-moving actions pass a stable idempotency key so a retry can never act twice. */
+  act: (id: string, key: string, path: string, body: unknown = {}, idempotencyKey?: string) =>
+    req<{ contract: ContractView }>("POST", `/api/contracts/${id}${path}`, key, body, idempotencyKey).then((r) => r.contract),
   order: (id: string, key: string) => req<{ orderId: string }>("POST", `/api/contracts/${id}/paypal/order`, key, {}),
 };
+
+export const inviteLink = (id: string, code: string) => `${location.origin}/join/${id}#${code}`;
 
 export const money = (cents: number, currency = "USD") =>
   new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);

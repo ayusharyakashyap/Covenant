@@ -40,8 +40,11 @@ test("compile, sign, fund, verify, release, complete", async () => {
   c = await engine.submitEvidence(c.id, "payee", m1, { files: [1, 2].map((i) => ({ name: `c${i}.png`, mime: "image/png", dataBase64: PNG })) });
   assert.equal(c.milestones[0].status, "rejected");
 
-  // Resubmit with three -> auto release
+  // Resubmit with three -> rules engine passes it but never pays alone; payer approves
   c = await engine.submitEvidence(c.id, "payee", m1, { files: [1, 2, 3].map((i) => ({ name: `c${i}.png`, mime: "image/png", dataBase64: PNG })) });
+  assert.equal(c.milestones[0].status, "needs_review");
+  assert.equal(c.milestones[0].verdict?.findings[0].met, true);
+  c = await engine.review(c.id, "payer", m1, "approve");
   assert.equal(c.milestones[0].status, "released");
   assert.equal(c.funding?.capturedCents, 20000);
 

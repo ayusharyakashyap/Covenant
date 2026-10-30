@@ -5,7 +5,9 @@
   "description": "Plain-English contracts that hold, verify and release money on PayPal, powered by Claude.",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "start": "tsx server/index.ts",
@@ -13,7 +15,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --test server/money.test.ts server/engine.test.ts",
     "smoke": "tsx scripts/smoke.ts",
-    "mcp": "tsx mcp/server.ts"
+    "mcp": "tsx mcp/server.ts",
+    "eval": "tsx eval/run.ts"
   },
   "dependencies": {
     "esbuild": "^0.28.0",

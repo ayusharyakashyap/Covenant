@@ -1,5 +1,5 @@
 // Thin Claude Messages API client using forced tool calls for structured output.
-import { config } from "../config.ts";
+import { config, markClaudeDegraded } from "../config.ts";
 
 export type ContentBlock =
   | { type: "text"; text: string }
@@ -53,7 +53,12 @@ export async function callTool<T>(opts: {
         content: { type: string; name?: string; input?: unknown }[];
         error?: { message: string };
       };
-      if (!res.ok) throw new ClaudeError(json.error?.message ?? `Claude API error ${res.status}`);
+      if (!res.ok) {
+        const msg = json.error?.message ?? `Claude API error ${res.status}`;
+        // Key/account problems won't fix themselves on retry: degrade to the offline engine.
+        if (res.status === 401 || res.status === 403 || /credit|billing|quota|permission/i.test(msg)) markClaudeDegraded(msg);
+        throw new ClaudeError(msg);
+      }
       const block = json.content.find((b) => b.type === "tool_use" && b.name === opts.tool.name);
       if (!block) throw new ClaudeError("Claude did not return structured output");
       return { input: block.input as T, model: json.model };
@@ -62,5 +67,6 @@ export async function callTool<T>(opts: {
       if (e instanceof ClaudeError && !String(e.message).startsWith("Claude API 5")) throw e;
     }
   }
+  markClaudeDegraded(lastErr instanceof Error ? lastErr.message : "unreachable", 2 * 60 * 1000);
   throw lastErr instanceof Error ? lastErr : new ClaudeError("Claude request failed");
 }

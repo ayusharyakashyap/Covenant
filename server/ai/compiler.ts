@@ -127,7 +127,9 @@ Rules:
 
 export async function compileDeal(text: string, now = new Date()): Promise<{ result: CompiledContract; engine: "claude" | "offline"; model?: string }> {
   if (!claudeLive()) return { result: offlineCompile(text, now), engine: "offline" };
-  const { input, model } = await callTool<CompiledContract>({
+  let out: { input: CompiledContract; model: string };
+  try {
+    out = await callTool<CompiledContract>({
     system,
     tool,
     maxTokens: 4000,
@@ -137,7 +139,12 @@ export async function compileDeal(text: string, now = new Date()): Promise<{ res
         text: `Today's date is ${now.toISOString().slice(0, 10)} (${now.toLocaleDateString("en-US", { weekday: "long" })}).\n\n<deal>\n${text}\n</deal>`,
       },
     ],
-  });
+    });
+  } catch (e) {
+    console.warn(`[ai] compile fell back to offline engine: ${e instanceof Error ? e.message : e}`);
+    return { result: offlineCompile(text, now), engine: "offline" };
+  }
+  const { input, model } = out;
   for (const m of input.milestones) m.conditions = m.conditions.filter((c) => KINDS.includes(c.kind));
   return { result: input, engine: "claude", model: model ?? config.ai.model };
 }

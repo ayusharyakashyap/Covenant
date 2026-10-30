@@ -3,6 +3,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join, extname } from "node:path";
 import { nanoid } from "nanoid";
 import { store } from "./store.ts";
+import { fileFacts } from "./facts.ts";
 import type { EvidenceItem } from "../shared/types.ts";
 
 export interface UploadInput { name: string; mime: string; dataBase64: string }
@@ -21,7 +22,10 @@ export function storeUpload(contractId: string, u: UploadInput): EvidenceItem {
   const fileName = `${id}-${safeName(u.name)}`;
   const storedPath = join(dir, fileName);
   writeFileSync(storedPath, buf);
-  const mime = u.mime || guessMime(u.name);
+  const facts = fileFacts(buf, u.name);
+  // Trust the bytes, not the browser's label: a JPEG renamed .png is still a JPEG.
+  const sniffed: Record<string, string> = { png: "image/png", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", pdf: "application/pdf", svg: "image/svg+xml", csv: "text/csv", text: "text/plain" };
+  const mime = sniffed[facts.detectedType] ?? (u.mime || guessMime(u.name));
   const isImage = /^image\/(png|jpeg|gif|webp)$/.test(mime);
   return {
     id,
@@ -32,6 +36,7 @@ export function storeUpload(contractId: string, u: UploadInput): EvidenceItem {
     url: `/uploads/${contractId}/${fileName}`,
     storedPath,
     excerpt: TEXTY.test(mime) ? buf.toString("utf8").slice(0, 6000) : undefined,
+    facts: { source: "file inspection", ...facts },
   };
 }
 

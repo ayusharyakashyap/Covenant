@@ -43,7 +43,9 @@ export async function arbitrate(c: Contract, m: Milestone): Promise<Ruling> {
     : "No verifier verdict.";
   const statements = m.dispute?.statements.map((s) => `${s.role.toUpperCase()} (${s.at}): ${s.text}`).join("\n\n") ?? "";
 
-  const { input, model } = await callTool<ToolOut>({
+  let out: { input: ToolOut; model: string };
+  try {
+    out = await callTool<ToolOut>({
     system,
     tool,
     maxTokens: 1500,
@@ -53,7 +55,11 @@ export async function arbitrate(c: Contract, m: Milestone): Promise<Ruling> {
         text: `<agreement>\n${c.summary}\nOriginal words: ${c.sourceText}\n</agreement>\n\n<milestone>\n${m.title} — ${(m.amountCents / 100).toFixed(2)} ${c.currency}\nConditions:\n${m.conditions.map((x) => `- ${x.text} (${x.kind})`).join("\n")}\nDeadline: ${m.deadline ?? "none"}\n</milestone>\n\n<evidence>\n${evidence}\n</evidence>\n\n<verifier>\n${verdict}\n</verifier>\n\n<dispute opened_by="${m.dispute?.openedBy}">\nReason: ${m.dispute?.reason}\n${statements}\n</dispute>`,
       },
     ],
-  });
+    });
+  } catch {
+    return { at, engine: "offline", ...offlineArbitrate(m) };
+  }
+  const { input, model } = out;
   return {
     at,
     engine: "claude",

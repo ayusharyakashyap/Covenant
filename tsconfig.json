@@ -11,5 +11,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["server/**/*.ts", "shared/**/*.ts", "mcp/**/*.ts", "scripts/**/*.ts"]
+  "include": ["server/**/*.ts", "shared/**/*.ts", "mcp/**/*.ts", "scripts/**/*.ts", "eval/**/*.ts"]
 }

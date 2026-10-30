@@ -43,4 +43,13 @@ export const config = {
 };
 
 export const paypalLive = () => Boolean(config.paypal.clientId && config.paypal.clientSecret);
-export const claudeLive = () => Boolean(config.ai.apiKey);
+// If the key stops working (expired, out of credit, outage), fall back to the offline engine
+// for a while instead of failing requests. Cleared automatically after the cool-down.
+export const aiHealth = { degradedUntil: 0, reason: "" };
+export function markClaudeDegraded(reason: string, ms = 10 * 60 * 1000) {
+  aiHealth.degradedUntil = Date.now() + ms;
+  aiHealth.reason = reason;
+  console.warn(`[ai] Claude unavailable (${reason}); using the offline engine for ${Math.round(ms / 60000)} min`);
+}
+export const claudeConfigured = () => Boolean(config.ai.apiKey);
+export const claudeLive = () => claudeConfigured() && Date.now() > aiHealth.degradedUntil;

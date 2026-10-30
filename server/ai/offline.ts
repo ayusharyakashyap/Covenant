@@ -136,11 +136,32 @@ export function offlineVerify(m: Milestone, sub: Submission) {
         return { conditionId: c.id, met: ok, confidence: ok ? 0.86 : 0.9, reasoning: ok ? `Found ${images.length} image${images.length === 1 ? "" : "s"}; ${need} required.` : `Only ${images.length} image${images.length === 1 ? "" : "s"} submitted; ${need} required.`, evidenceIds: images.map((i) => i.id) };
       }
       case "file": {
+        type F = { detectedType?: string; extensionMatchesContent?: boolean; width?: number; pages?: number; uniqueRows?: number; duplicateRows?: number };
+        const fx = (f: (typeof files)[number]) => (f.facts ?? {}) as F;
+        const typeOf = (f: (typeof files)[number]) => (fx(f).detectedType === "jpeg" ? "jpg" : fx(f).detectedType) ?? f.name.split(".").pop()!.toLowerCase();
         const exts = [...t.matchAll(/\b(svg|png|pdf|zip|csv|xlsx|psd|ai|docx|mp4|mov|wav|mp3|fig)\b/g)].map((x) => x[1]);
-        const names = files.map((f) => f.name.toLowerCase());
-        const missing = exts.filter((e) => !names.some((n) => n.endsWith("." + e)));
-        const ok = files.length > 0 && missing.length === 0;
-        return { conditionId: c.id, met: ok, confidence: ok ? 0.88 : 0.9, reasoning: ok ? `Files present${exts.length ? ` in the required formats (${exts.join(", ").toUpperCase()})` : ""}.` : missing.length ? `Missing file formats: ${missing.join(", ").toUpperCase()}.` : "No files were submitted.", evidenceIds: files.map((f) => f.id) };
+        // A format only counts if the bytes really are that format.
+        const missing = exts.filter((e) => !files.some((f) => f.name.toLowerCase().endsWith("." + e) && (fx(f).extensionMatchesContent ?? true) && (typeOf(f) === e || !fx(f).detectedType)));
+        const problems: string[] = [];
+        if (missing.length) problems.push(`Missing or mislabelled formats: ${missing.join(", ").toUpperCase()}`);
+        const px = t.match(/(\d{3,5})\s*(?:px|pixels)/)?.[1];
+        if (px) {
+          const raster = files.filter((f) => fx(f).width && ["png", "jpeg", "webp", "gif"].includes(fx(f).detectedType ?? ""));
+          if (!raster.some((f) => (fx(f).width ?? 0) >= Number(px))) problems.push(`No raster image is at least ${px}px wide`);
+        }
+        const pages = t.match(/(\d+)[- ]page/)?.[1];
+        if (pages) {
+          const pdf = files.find((f) => fx(f).pages);
+          if (!pdf || (fx(pdf).pages ?? 0) < Number(pages)) problems.push(`Expected ${pages} pages, found ${pdf ? fx(pdf).pages : "no PDF"}`);
+        }
+        const rowsNeed = t.match(/(\d+)\s+(?:\w+\s+)?rows/)?.[1];
+        if (rowsNeed) {
+          const csv = files.find((f) => fx(f).uniqueRows !== undefined);
+          if (!csv || (fx(csv).uniqueRows ?? 0) < Number(rowsNeed)) problems.push(`Needs ${rowsNeed} unique rows, found ${csv ? fx(csv).uniqueRows : "no CSV"}`);
+          else if (/dedup|unique|duplicate/.test(t) && (fx(csv).duplicateRows ?? 0) > 0) problems.push(`CSV still has ${fx(csv).duplicateRows} duplicate rows`);
+        }
+        const ok = files.length > 0 && problems.length === 0;
+        return { conditionId: c.id, met: ok, confidence: ok ? 0.85 : 0.9, reasoning: ok ? `Files checked${exts.length ? `: ${exts.join(", ").toUpperCase()} present and genuine` : ""}.` : files.length ? problems.join(". ") + "." : "No files were submitted.", evidenceIds: files.map((f) => f.id) };
       }
       case "link": {
         const live = links.filter((l) => (l.facts as { reachable?: boolean } | undefined)?.reachable !== false);

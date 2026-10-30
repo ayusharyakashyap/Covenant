@@ -1,0 +1,3 @@
+Cleaning report
+
+Started with 1,184 rows from the CRM export. Removed 612 exact duplicates (same email and id), 41 rows with invalid emails, and 11 test accounts (@test.internal). 520 unique customers remain. No fields were modified.

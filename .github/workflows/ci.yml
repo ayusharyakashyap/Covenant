@@ -1,8 +1,10 @@
 name: CI
+# Manual for now: the GitHub account's Actions are paused by a billing issue.
+# Once Settings → Billing is resolved, restore automatic runs by adding:
+#   push: { branches: [main] }
+#   pull_request:
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   check:

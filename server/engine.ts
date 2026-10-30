@@ -8,6 +8,7 @@ import { compileDeal } from "./ai/compiler.ts";
 import { verifyMilestone } from "./ai/verifier.ts";
 import { arbitrate } from "./ai/arbiter.ts";
 import { settle, feeSplit, reconcile, toCents, fmt } from "./money.ts";
+import { notify } from "./notify.ts";
 import { storeUpload, linkEvidence, textEvidence, type UploadInput } from "./evidence.ts";
 import type { Actor, Contract, LedgerEntry, Milestone, Role, Party } from "../shared/types.ts";
 
@@ -22,6 +23,7 @@ const DAY = 864e5;
 
 function event(c: Contract, actor: Actor, type: string, message: string, milestoneId?: string) {
   c.events.push({ id: `evt_${nanoid(8)}`, at: now(), actor, type, message, milestoneId });
+  notify(c, type, message, milestoneId);
 }
 
 function ledger(c: Contract, e: Omit<LedgerEntry, "id" | "at" | "currency" | "simulated">) {

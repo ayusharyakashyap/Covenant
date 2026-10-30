@@ -1,0 +1,661 @@
+{
+  "info": {
+    "name": "Covenant — PayPal escrow contracts API",
+    "description": "Runs a whole Covenant contract end to end: compile a plain-English deal, sign, fund with a PayPal authorization, submit evidence, verify, capture and pay out.\n\nRun the folder with the Collection Runner. With PayPal keys configured on the server, open the `approveUrl` logged by **Create PayPal order** in a browser and approve as your sandbox buyer before **Authorize** runs (add a delay, or run step by step). Without keys the server's simulator authorizes immediately.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8787"
+    },
+    {
+      "key": "contractId",
+      "value": ""
+    },
+    {
+      "key": "payerKey",
+      "value": ""
+    },
+    {
+      "key": "payeeKey",
+      "value": ""
+    },
+    {
+      "key": "milestoneId",
+      "value": ""
+    },
+    {
+      "key": "orderId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "pm.test('reports integrations', () => pm.expect(r).to.have.keys('ok','paypal','ai'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Compile a deal",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "pm.collectionVariables.set('contractId', r.contract.id);",
+              "pm.collectionVariables.set('payerKey', r.keys.payer);",
+              "pm.collectionVariables.set('payeeKey', r.keys.payee);",
+              "pm.collectionVariables.set('milestoneId', r.contract.milestones[0].id);",
+              "pm.test('compiled milestones add up to the total', () => pm.expect(r.contract.milestones.reduce((a, m) => a + m.amountCents, 0)).to.eql(r.contract.totalCents));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/compile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "compile"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"Pay Maya (maya.designs@example.com) $600 for a bakery logo: $200 when she shows 3 distinct concepts, $400 when the final logo is delivered as SVG and PNG files by Dec 20. 10% off per day late, up to 50%.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Claude (or the offline rules engine) compiles the sentence into milestones, conditions, deadlines and penalties."
+      }
+    },
+    {
+      "name": "Sign as client",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "pm.test('client signed', () => pm.expect(r.contract.signatures).to.have.property('payer'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payerKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/sign",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}",
+            "sign"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Freelancer adds payout email",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payeeKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/draft",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}",
+            "draft"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payee\": {\n    \"email\": \"maya.designs@example.com\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Sign as client again (edits reset signatures)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payerKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/sign",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}",
+            "sign"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Sign as freelancer",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "pm.test('ready to fund', () => pm.expect(r.contract.status).to.eql('awaiting_funding'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payeeKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/sign",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}",
+            "sign"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Create PayPal order (intent AUTHORIZE)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "pm.collectionVariables.set('orderId', r.orderId);",
+              "if (r.approveUrl) console.log('Approve as the sandbox buyer:', r.approveUrl);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payerKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/paypal/order",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}",
+            "paypal",
+            "order"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Authorize order (hold funds)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "pm.test('funds held', () => pm.expect(r.contract.status).to.eql('active'));",
+              "pm.test('ledger has the authorization', () => pm.expect(r.contract.ledger[0].type).to.eql('authorization'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payerKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/paypal/authorize",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}",
+            "paypal",
+            "authorize"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"{{orderId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Freelancer submits evidence",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "const m = r.contract.milestones.find((x) => x.id === pm.collectionVariables.get('milestoneId'));",
+              "pm.test('verifier produced a verdict', () => pm.expect(m.verdict).to.be.an('object'));",
+              "console.log('Verdict:', m.verdict.outcome, '-', m.verdict.summary);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payeeKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/milestones/{{milestoneId}}/evidence",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}",
+            "milestones",
+            "{{milestoneId}}",
+            "evidence"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"note\": \"Three concepts attached.\",\n  \"files\": [\n    {\n      \"name\": \"concept-1.png\",\n      \"mime\": \"image/png\",\n      \"dataBase64\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==\"\n    },\n    {\n      \"name\": \"concept-2.png\",\n      \"mime\": \"image/png\",\n      \"dataBase64\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==\"\n    },\n    {\n      \"name\": \"concept-3.png\",\n      \"mime\": \"image/png\",\n      \"dataBase64\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Client approves (if held for review)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('approved, or already paid automatically', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));",
+              "if (pm.response.code === 200) { const r = pm.response.json(); const m = r.contract.milestones.find((x) => x.id === pm.collectionVariables.get('milestoneId')); pm.test('milestone paid', () => pm.expect(m.status).to.eql('released')); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payerKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/milestones/{{milestoneId}}/review",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}",
+            "milestones",
+            "{{milestoneId}}",
+            "review"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decision\": \"approve\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Read contract",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "pm.test('tokens never leak', () => pm.expect(r.contract).to.not.have.property('tokens'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payeeKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Ask about your money",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds 200', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json();",
+              "pm.test('answers with a grid view', () => pm.expect(r.view.columns).to.be.an('array'));",
+              "console.log(r.answer);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/portfolio/ask",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "portfolio",
+            "ask"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"How much has been paid and how much is still held?\",\n  \"pairs\": [\n    {\n      \"id\": \"{{contractId}}\",\n      \"key\": \"{{payerKey}}\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Permission check: freelancer can't fund",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('refused', () => pm.expect(pm.response.code).to.be.oneOf([403, 409]));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-covenant-key",
+            "value": "{{payeeKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/contracts/{{contractId}}/paypal/order",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "contracts",
+            "{{contractId}}",
+            "paypal",
+            "order"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

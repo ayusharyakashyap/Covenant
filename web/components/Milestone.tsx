@@ -99,10 +99,15 @@ export function MilestoneCard({ c, m, role, keyFor, onChange }: { c: ContractVie
               </a>
             ) : i.kind === "link" ? (
               <a key={i.id} href={i.url} target="_blank" rel="noreferrer noopener">
-                <span className="ico">{(i.facts as any)?.source === "GitHub API" ? "PR" : "URL"}</span>
+                <span className="ico">{(i.facts as any)?.source === "GitHub API" ? "PR" : (i.facts as any)?.source === "Kernel cloud browser" ? "LIVE" : "URL"}</span>
                 <span className="nm">
                   {i.name}
                   {(i.facts as any)?.merged !== undefined && <span className="reason">{(i.facts as any).merged ? "merged" : "not merged"}</span>}
+                  {(i.facts as any)?.source === "Kernel cloud browser" && (
+                    <span className="reason">
+                      Opened in a cloud browser{(i.facts as any).consoleErrors?.length ? `, ${(i.facts as any).consoleErrors.length} page error${(i.facts as any).consoleErrors.length > 1 ? "s" : ""}` : ""}
+                    </span>
+                  )}
                 </span>
               </a>
             ) : i.url ? (

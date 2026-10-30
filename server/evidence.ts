@@ -4,6 +4,7 @@ import { join, extname } from "node:path";
 import { nanoid } from "nanoid";
 import { store } from "./store.ts";
 import { fileFacts } from "./facts.ts";
+import { inspectSite, kernelLive } from "./kernel.ts";
 import type { EvidenceItem } from "../shared/types.ts";
 
 export interface UploadInput { name: string; mime: string; dataBase64: string }
@@ -73,7 +74,12 @@ function isPublicHttpUrl(raw: string) {
   }
 }
 
-export async function linkEvidence(raw: string): Promise<EvidenceItem> {
+export async function linkEvidence(raw: string, contractId?: string): Promise<EvidenceItem[]> {
+  const r = await linkEvidenceInner(raw, contractId);
+  return Array.isArray(r) ? r : [r];
+}
+
+async function linkEvidenceInner(raw: string, contractId?: string): Promise<EvidenceItem | EvidenceItem[]> {
   const url = raw.trim();
   const id = `ev_${nanoid(8)}`;
   const base: EvidenceItem = { id, kind: "link", name: url.replace(/^https?:\/\//, "").slice(0, 80), url };
@@ -108,6 +114,36 @@ export async function linkEvidence(raw: string): Promise<EvidenceItem> {
       return { ...base, facts: { source: "GitHub API", reachable: false, status: res.status } };
     } catch (e) {
       return { ...base, facts: { source: "GitHub API", reachable: false, error: String(e) } };
+    }
+  }
+
+  // Real browser via Kernel: screenshots the verifier can look at, plus console errors.
+  if (kernelLive() && contractId) {
+    try {
+      const site = await inspectSite(url);
+      const shots = (["desktop", "mobile"] as const).map((v) => {
+        const item = storeUpload(contractId, { name: `${v}-${new URL(url).hostname}.png`, mime: "image/png", dataBase64: (v === "desktop" ? site.desktopPng : site.mobilePng).toString("base64") });
+        item.facts = { ...item.facts, source: "Kernel cloud browser", screenshotOf: url, viewport: v === "desktop" ? "1280x800" : "390x844" };
+        return item;
+      });
+      const link: EvidenceItem = {
+        ...base,
+        excerpt: `Title: ${site.title}\n${site.text}`,
+        facts: {
+          source: "Kernel cloud browser",
+          reachable: site.status !== null && site.status < 400,
+          status: site.status,
+          finalUrl: site.finalUrl,
+          title: site.title,
+          consoleErrors: site.errors,
+          interactiveControls: site.controls.slice(0, 30),
+          screenshots: shots.map((x) => x.id),
+          inspectedInMs: site.ms,
+        },
+      };
+      return [link, ...shots];
+    } catch (e) {
+      console.warn(`[kernel] falling back to plain fetch: ${e instanceof Error ? e.message : e}`);
     }
   }
 

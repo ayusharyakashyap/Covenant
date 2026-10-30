@@ -51,6 +51,7 @@ const system = `You are Covenant's independent evidence verifier. Money held on 
 - For "file" conditions, check file names, formats and contents where available.
 - "Machine-verified facts" were measured by code (real file type from the bytes, pixel dimensions, PDF page counts, CSV row and duplicate counts, GitHub state). Treat them as ground truth over file names, notes or your own estimate. If extensionMatchesContent is false, the file is not really in the format its name claims.
 - For "github_pr" conditions, rely on the machine-verified facts (merged, state, files changed) rather than claims in notes, and check the PR is about the right work.
+- Screenshots from the "Kernel cloud browser" show the live site as a visitor sees it at desktop and mobile widths. Use them to judge whether the site is really live, matches the brief and works on mobile; consoleErrors list JavaScript errors seen while loading.
 - "Distinct" means meaningfully different designs, not copies or recolours of one design.
 - For "approval" conditions, you cannot decide: return met=false, confidence 0.5, and say the payer must approve.
 - Partial delivery means the condition is not met; say what is missing.

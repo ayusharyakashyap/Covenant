@@ -197,7 +197,7 @@ export function submitEvidence(id: string, role: Role | null, mid: string, input
 
     const items = [
       ...files.map((f) => storeUpload(c.id, f)),
-      ...(await Promise.all(links.map(linkEvidence))),
+      ...(await Promise.all(links.map((l) => linkEvidence(l, c.id)))).flat(),
       ...((input.note ?? "").trim().length > 0 ? [textEvidence(input.note!.trim())] : []),
     ];
     const sub = { id: `sub_${nanoid(6)}`, at: now(), note: (input.note ?? "").trim().slice(0, 4000), items };

@@ -326,3 +326,17 @@ footer.foot { margin-top: 72px; padding-top: 18px; border-top: 1px solid var(--r
 .studio-bar { display: flex; align-items: center; gap: 14px; padding: 12px 20px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
 .studio-bar .btn { margin-left: auto; }
 .studio-host { flex: 1; min-height: 0; }
+
+/* ---------- timeline */
+.gantt-host { height: 460px; margin-top: 14px; border-radius: 12px; overflow: hidden; border: 1px solid var(--rule); }
+.tl { position: relative; margin-top: 16px; }
+.tl-group { padding: 8px 0; border-top: 1px solid var(--rule); }
+.tl-name { font-weight: 650; font-size: 14.5px; margin-bottom: 4px; }
+.tl-row { display: grid; grid-template-columns: 38% 1fr; gap: 12px; align-items: center; padding: 3px 0; }
+.tl-label { font-size: 13px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-track { position: relative; height: 16px; background: var(--paper-sunk); border-radius: 4px; }
+.tl-bar { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--held); min-width: 4px; }
+.tl-bar.released { background: var(--released); } .tl-bar.refunded { background: var(--ink-faint); }
+.tl-bar.disputed, .tl-bar.rejected, .tl-bar.needs_review { background: var(--alert); }
+.tl-now { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--focus); z-index: 1; }
+@media (max-width: 640px) { .tl-row { grid-template-columns: 1fr; } }

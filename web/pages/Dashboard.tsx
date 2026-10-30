@@ -2,6 +2,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { day, keyring, loadScript, money, when } from "../api.ts";
 import { ConfigCtx, Link, useToast } from "../app.tsx";
 import { covenantTheme, loadAgGrid, toFilterModel } from "../components/grid.ts";
+import { Timeline } from "../components/Timeline.tsx";
 
 type View = { columns: string[]; filters: { field: string; op: string; value?: string | number }[]; sort?: { field: string; dir: "asc" | "desc" } };
 type Portfolio = {
@@ -29,7 +30,7 @@ export function Dashboard() {
   const toast = useToast();
   const cfg = useContext(ConfigCtx);
   const [data, setData] = useState<Portfolio | null>(null);
-  const [tab, setTab] = useState<"milestones" | "ledger" | "contracts">("milestones");
+  const [tab, setTab] = useState<"milestones" | "ledger" | "contracts" | "timeline">("milestones");
   const [view, setView] = useState<View>(DEFAULT_VIEW);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<{ text: string; engine: string } | null>(null);
@@ -48,7 +49,7 @@ export function Dashboard() {
     load();
   }, []);
 
-  const rows = data ? data[tab] : [];
+  const rows = data && tab !== "timeline" ? data[tab] : [];
   const columns = useMemo(() => {
     if (tab === "milestones") return view.columns;
     if (tab === "ledger") return ["at", "contract", "milestone", "type", "amount", "status", "reference"];
@@ -57,7 +58,7 @@ export function Dashboard() {
 
   // (Re)build the grid when the data, tab or AI view changes.
   useEffect(() => {
-    if (!data || !el.current) return;
+    if (!data || !el.current || tab === "timeline") return;
     let alive = true;
     loadAgGrid()
       .then((ag) => {
@@ -184,9 +185,9 @@ export function Dashboard() {
 
       <section className="panel" style={{ marginTop: 16 }}>
         <div className="seg" role="tablist" aria-label="Data">
-          {(["milestones", "ledger", "contracts"] as const).map((t) => (
+          {(["milestones", "timeline", "ledger", "contracts"] as const).map((t) => (
             <button key={t} role="tab" aria-pressed={tab === t} aria-selected={tab === t} onClick={() => setTab(t)}>
-              {t === "milestones" ? `Milestones (${data.milestones.length})` : t === "ledger" ? `PayPal ledger (${data.ledger.length})` : `Contracts (${data.contracts.length})`}
+              {t === "milestones" ? `Milestones (${data.milestones.length})` : t === "timeline" ? "Timeline" : t === "ledger" ? `PayPal ledger (${data.ledger.length})` : `Contracts (${data.contracts.length})`}
             </button>
           ))}
         </div>
@@ -194,6 +195,8 @@ export function Dashboard() {
           <p className="muted" style={{ marginTop: 16 }}>
             No contracts on this device yet. <Link to="/">Write one</Link>, or add sample contracts to explore the dashboard.
           </p>
+        ) : tab === "timeline" ? (
+          <Timeline contracts={data.contracts as any} milestones={data.milestones as any} />
         ) : gridFailed ? (
           <FallbackTable rows={tab === "milestones" ? applyView(rows, view) : rows} columns={columns} />
         ) : (

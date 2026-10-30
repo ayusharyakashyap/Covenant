@@ -6,6 +6,9 @@ import { config, paypalLive, claudeLive } from "./config.ts";
 import { store } from "./store.ts";
 import { paypal, PayPalError } from "./paypal.ts";
 import * as engine from "./engine.ts";
+import { portfolio, ask } from "./portfolio.ts";
+import { kernelLive } from "./kernel.ts";
+import { seedDemo } from "./seed.ts";
 import { HttpError } from "./engine.ts";
 import type { Contract, PublicConfig, Role } from "../shared/types.ts";
 
@@ -65,6 +68,8 @@ export function publicView(c: Contract) {
 const publicConfig = (): PublicConfig => ({
   paypal: { mode: paypalLive() ? "sandbox" : "simulated", clientId: paypalLive() ? config.paypal.clientId : undefined, currency: config.paypal.currency },
   ai: { engine: claudeLive() ? "claude" : "offline", model: claudeLive() ? config.ai.model : undefined },
+  kernel: kernelLive(),
+  agStudioLicense: config.agStudioLicense || undefined,
 });
 
 type Handler = (ctx: { req: IncomingMessage; res: ServerResponse; params: Record<string, string>; body: any; role: Role | null; contract?: Contract }) => Promise<unknown>;
@@ -83,6 +88,13 @@ route("GET", "/api/config", async () => publicConfig());
 route("POST", "/api/compile", async ({ body }) => {
   const c = await engine.createContract(String(body.text ?? ""), { payer: body.payer, payee: body.payee, origin: body.origin === "mcp" ? "mcp" : "web" });
   return { contract: view(c), keys: c.tokens };
+});
+
+route("POST", "/api/demo/seed", async () => ({ contracts: await seedDemo() }));
+route("POST", "/api/portfolio", async ({ body }) => portfolio(Array.isArray(body.pairs) ? body.pairs : []));
+route("POST", "/api/portfolio/ask", async ({ body }) => {
+  const p = portfolio(Array.isArray(body.pairs) ? body.pairs : []);
+  return ask(String(body.question ?? ""), p.milestones);
 });
 
 route("GET", "/api/contracts/:id", async ({ contract, role }) => {

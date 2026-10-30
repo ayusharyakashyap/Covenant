@@ -183,4 +183,6 @@ export interface Contract {
 export interface PublicConfig {
   paypal: { mode: "sandbox" | "simulated"; clientId?: string; currency: string };
   ai: { engine: "claude" | "offline"; model?: string };
+  kernel: boolean;
+  agStudioLicense?: string;
 }

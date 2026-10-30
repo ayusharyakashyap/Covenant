@@ -43,8 +43,8 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export function offlineCompile(text: string, now: Date): CompiledContract {
   const clean = text.replace(/\s+/g, " ").trim();
   const amounts = [...clean.matchAll(/\$\s?([\d,]+(?:\.\d{1,2})?)/g)].map((m) => Number(m[1].replace(/,/g, "")));
-  const payeeMatch = clean.match(/\b(?:[Pp]ay|[Hh]ire|[Pp]aying)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/);
-  const payerMatch = clean.match(/\b([A-Z][a-z]+)\s+(?:will\s+)?pays?\b/);
+  const payeeMatch = clean.match(/\b(?:[Pp]ay|[Hh]ire|[Pp]aying)\s+(\p{Lu}\p{Ll}+(?:\s\p{Lu}\p{Ll}+)?)/u);
+  const payerMatch = clean.match(/\b(\p{Lu}\p{Ll}+)\s+(?:will\s+)?pays?\b/u);
   const penalty = clean.match(/(\d+(?:\.\d+)?)\s*%[^.;]*?\b(?:per|a|each)\s+day/i);
   const penaltyCap = clean.match(/(?:max(?:imum)?|capped at|up to)\s*(\d+)\s*%/i);
   const deadlineAll = parseDate(clean, now);

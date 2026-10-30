@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 // Minimal .env loader so the project needs no dotenv dependency.
 function loadEnvFile(path: string) {
@@ -40,9 +41,14 @@ export const config = {
     base: env("ANTHROPIC_API_BASE", "https://api.anthropic.com"),
   },
   autoReleaseThreshold: Number(env("AUTO_RELEASE_THRESHOLD", "0.8")),
+  agStudioLicense: env("AG_STUDIO_LICENSE"),
 };
 
-export const paypalLive = () => Boolean(config.paypal.clientId && config.paypal.clientSecret);
+// Sample data is generated with the simulator and rules engine, never real sandbox money or API credits.
+export const simulation = new AsyncLocalStorage<boolean>();
+const simulated = () => simulation.getStore() === true;
+
+export const paypalLive = () => !simulated() && Boolean(config.paypal.clientId && config.paypal.clientSecret);
 // If the key stops working (expired, out of credit, outage), fall back to the offline engine
 // for a while instead of failing requests. Cleared automatically after the cool-down.
 export const aiHealth = { degradedUntil: 0, reason: "" };
@@ -52,4 +58,4 @@ export function markClaudeDegraded(reason: string, ms = 10 * 60 * 1000) {
   console.warn(`[ai] Claude unavailable (${reason}); using the offline engine for ${Math.round(ms / 60000)} min`);
 }
 export const claudeConfigured = () => Boolean(config.ai.apiKey);
-export const claudeLive = () => claudeConfigured() && Date.now() > aiHealth.degradedUntil;
+export const claudeLive = () => !simulated() && claudeConfigured() && Date.now() > aiHealth.degradedUntil;

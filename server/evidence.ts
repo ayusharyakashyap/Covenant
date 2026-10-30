@@ -1,7 +1,7 @@
 // Turns raw uploads and links into evidence items, including machine-verified facts.
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join, extname } from "node:path";
-import { nanoid } from "nanoid";
+import { nanoid } from "./id.ts";
 import { store } from "./store.ts";
 import { fileFacts } from "./facts.ts";
 import { inspectSite, kernelLive } from "./kernel.ts";

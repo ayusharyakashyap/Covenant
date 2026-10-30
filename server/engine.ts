@@ -1,5 +1,5 @@
 // The contract state machine. Every money movement goes through here, in deterministic code.
-import { nanoid } from "nanoid";
+import { nanoid } from "./id.ts";
 import { randomBytes } from "node:crypto";
 import { config } from "./config.ts";
 import { store, withLock } from "./store.ts";

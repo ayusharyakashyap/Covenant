@@ -248,7 +248,7 @@ function FallbackTable({ rows, columns }: { rows: Record<string, any>[]; columns
   );
 }
 
-const STUDIO_SRC = vendorUrls("ag-studio", "3.0.0", "dist/ag-studio.min.js");
+const STUDIO_SRC = vendorUrls("ag-studio", "3.0.0", "dist/umd/ag-studio.min.js");
 
 /** AG Studio: drag-and-drop reports over the same three data sources. */
 function StudioPanel({ data, licence, onClose }: { data: Portfolio; licence?: string; onClose: () => void }) {

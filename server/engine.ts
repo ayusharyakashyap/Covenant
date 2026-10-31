@@ -1,6 +1,6 @@
 // The contract state machine. Every money movement goes through here, in deterministic code.
 import { nanoid } from "./id.ts";
-import { config } from "./config.ts";
+import { config, aiName } from "./config.ts";
 import { store, withLock } from "./store.ts";
 import { paypal, PayPalError } from "./paypal.ts";
 import { compileDeal } from "./ai/compiler.ts";
@@ -98,7 +98,7 @@ export async function createContract(text: string, opts: { payer?: Partial<Party
   const payerKey = newSecret();
   const inviteCode = newSecret();
   c.access = { payerHash: hashSecret(payerKey), inviteHash: hashSecret(inviteCode), inviteCreatedAt: now() };
-  event(c, "ai", "compiled", `Compiled into ${c.milestones.length} milestone${c.milestones.length > 1 ? "s" : ""} worth ${fmt(c.totalCents, c.currency)}${engine === "claude" ? ` by ${model}` : " by the offline rules engine"}.`);
+  event(c, "ai", "compiled", `Compiled into ${c.milestones.length} milestone${c.milestones.length > 1 ? "s" : ""} worth ${fmt(c.totalCents, c.currency)}${engine !== "offline" ? ` by ${model}` : " by the offline rules engine"}.`);
   store.save(c);
   // Raw secrets are returned once, to the creator, and never stored.
   return { contract: c, payerKey, inviteCode };
@@ -282,7 +282,7 @@ registerJob("verify", async ({ contractId, milestoneId, submissionId }, job) => 
       const { c, m } = s;
       const { injection, injectionNote, ...v } = verdict;
       m.verdict = v;
-      const who = v.engine === "claude" ? "Claude" : "The rules engine";
+      const who = aiName(v.engine);
       if (injection) event(c, "ai", "injection_blocked", `${who} found instructions aimed at the verifier inside the evidence and ignored them. ${injectionNote ?? ""}`.trim(), m.id);
       if (v.outcome === "pass") {
         event(c, "ai", "verified", `${who} verified every condition (lowest confidence ${(v.confidence * 100).toFixed(0)}%). Releasing funds.`, m.id);
@@ -487,7 +487,7 @@ export function resolveDispute(id: string, role: Role | null, mid: string) {
     if (m.status !== "disputed" || !m.dispute) throw new HttpError(409, "There's no open dispute on this milestone.");
     const ruling = await arbitrate(c, m);
     m.dispute.ruling = ruling;
-    event(c, "ai", "ruling", `${ruling.engine === "claude" ? "Claude" : "The rules engine"} ruled ${ruling.payeePercent}% to ${c.payee.name}: ${ruling.reasoning}`, m.id);
+    event(c, "ai", "ruling", `${aiName(ruling.engine)} ruled ${ruling.payeePercent}% to ${c.payee.name}: ${ruling.reasoning}`, m.id);
     await release(c, m, ruling.payeePercent, "arbiter");
     return store.save(c);
   });

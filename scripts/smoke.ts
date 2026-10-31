@@ -1,6 +1,7 @@
-// Checks your keys before you record the demo: PayPal sandbox OAuth + order creation, Payouts access, and a Claude call.
+// Checks your keys before you record the demo: PayPal sandbox OAuth + order creation, Payouts access, and a structured AI call (Gemini or Claude).
 // Run: npm run smoke
-import { config, paypalLive, claudeLive } from "../server/config.ts";
+import { config, paypalLive, aiLive, aiName } from "../server/config.ts";
+import { callTool } from "../server/ai/llm.ts";
 
 const ok = (s: string) => console.log(`  \x1b[32m✓\x1b[0m ${s}`);
 const bad = (s: string) => console.log(`  \x1b[31m✗\x1b[0m ${s}`);
@@ -35,21 +36,37 @@ if (!paypalLive()) {
   }
 }
 
-console.log("\nClaude");
-if (!claudeLive()) {
-  bad("ANTHROPIC_API_KEY not set — the app will use the offline rules engine");
+console.log(`\nAI (${aiName()})`);
+if (!aiLive()) {
+  bad("No AI key set. Add GEMINI_API_KEY (free at aistudio.google.com) or ANTHROPIC_API_KEY; until then the rules engine is used");
 } else {
+  // The same kind of structured call the verifier makes: forced tool call, read back the JSON.
   try {
-    const r = await fetch(`${config.ai.base}/v1/messages`, {
-      method: "POST",
-      headers: { "x-api-key": config.ai.apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: config.ai.model, max_tokens: 16, messages: [{ role: "user", content: "Reply with the word ready." }] }),
+    const { input, model } = await callTool<{ status: string; total: number }>({
+      system: "You check arithmetic.",
+      content: [{ type: "text", text: "Add 200 and 400. Set status to ready." }],
+      tool: {
+        name: "report",
+        description: "Report the result.",
+        input_schema: { type: "object", required: ["status", "total"], properties: { status: { type: "string" }, total: { type: "number" } } },
+      },
+      maxTokens: 200,
     });
-    const j = (await r.json()) as { model?: string; error?: { message: string } };
-    r.ok ? ok(`${j.model} responded`) : (bad(`Claude: ${j.error?.message} (check ANTHROPIC_MODEL=${config.ai.model})`), failed++);
+    Number(input.total) === 600 ? ok(`${model} returned structured output (total ${input.total})`) : (bad(`${model} answered, but got total ${input.total}`), failed++);
   } catch (e) {
-    bad(`Claude: ${e instanceof Error ? e.message : e}`);
+    const msg = e instanceof Error ? e.message : String(e);
+    bad(`${aiName()}: ${msg}`);
     failed++;
+    if (config.ai.provider === "gemini" && /not found|not supported|404/i.test(msg)) {
+      try {
+        const r = await fetch(`${config.ai.base}/v1beta/models?pageSize=200`, { headers: { "x-goog-api-key": config.ai.apiKey } });
+        const j = (await r.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
+        const names = (j.models ?? []).filter((m) => m.supportedGenerationMethods?.includes("generateContent") && /flash/.test(m.name)).map((m) => m.name.replace("models/", ""));
+        if (names.length) console.log(`    Models your key can use: ${names.join(", ")}\n    Set GEMINI_MODEL in .env to one of these.`);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 console.log("");

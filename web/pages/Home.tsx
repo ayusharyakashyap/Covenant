@@ -59,7 +59,7 @@ export function Home() {
   return (
     <main>
       <section className="hero">
-        <h1>Write the deal in a sentence. PayPal holds the money. Claude checks the work.</h1>
+        <h1>Write the deal in a sentence. PayPal holds the money. AI checks the work.</h1>
         <p>
           Covenant turns a plain-English agreement into a contract that pays itself: funds are held on PayPal, the freelancer uploads proof, and each milestone releases the moment the evidence
           meets the terms you both signed.
@@ -105,7 +105,7 @@ export function Home() {
       <section className="how" aria-label="How it works">
         <div>
           <b><i>1</i>Describe</b>
-          <span>Write the deal the way you'd text it. Claude turns it into milestones with checkable conditions.</span>
+          <span>Write the deal the way you'd text it. AI turns it into milestones with checkable conditions.</span>
         </div>
         <div>
           <b><i>2</i>Sign and fund</b>
@@ -113,7 +113,7 @@ export function Home() {
         </div>
         <div>
           <b><i>3</i>Deliver</b>
-          <span>The freelancer uploads files, links or a GitHub PR. Claude checks each condition and explains why.</span>
+          <span>The freelancer uploads files, links or a GitHub PR. AI checks each condition and explains why.</span>
         </div>
         <div>
           <b><i>4</i>Get paid</b>

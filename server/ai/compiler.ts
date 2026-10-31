@@ -1,8 +1,8 @@
 // Compiles a plain-English deal into a structured, executable contract.
-import { claudeLive, config } from "../config.ts";
-import { callTool } from "./claude.ts";
+import { aiLive, config, aiEngine } from "../config.ts";
+import { callTool } from "./llm.ts";
 import { offlineCompile } from "./offline.ts";
-import type { ConditionKind } from "../../shared/types.ts";
+import type { ConditionKind, Engine } from "../../shared/types.ts";
 
 export interface CompiledMilestone {
   title: string;
@@ -125,8 +125,8 @@ Rules:
 - Default currency USD. Default payer name "Client" and payee name "Freelancer" if not named.
 - If the text is not a payment agreement, or the work is illegal or harmful, set is_valid_agreement false with a short rejection_reason and fill other fields minimally.`;
 
-export async function compileDeal(text: string, now = new Date()): Promise<{ result: CompiledContract; engine: "claude" | "offline"; model?: string }> {
-  if (!claudeLive()) return { result: offlineCompile(text, now), engine: "offline" };
+export async function compileDeal(text: string, now = new Date()): Promise<{ result: CompiledContract; engine: Engine; model?: string }> {
+  if (!aiLive()) return { result: offlineCompile(text, now), engine: "offline" };
   let out: { input: CompiledContract; model: string };
   try {
     out = await callTool<CompiledContract>({
@@ -146,5 +146,5 @@ export async function compileDeal(text: string, now = new Date()): Promise<{ res
   }
   const { input, model } = out;
   for (const m of input.milestones) m.conditions = m.conditions.filter((c) => KINDS.includes(c.kind));
-  return { result: input, engine: "claude", model: model ?? config.ai.model };
+  return { result: input, engine: aiEngine(), model: model ?? config.ai.model };
 }

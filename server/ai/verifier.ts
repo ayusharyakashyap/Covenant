@@ -1,8 +1,8 @@
 // Verifies submitted evidence against a milestone's conditions.
 // Evidence is untrusted: the model is told to treat it as data and to report injection attempts.
 import { readFileSync } from "node:fs";
-import { claudeLive, config } from "../config.ts";
-import { callTool, type ContentBlock } from "./claude.ts";
+import { aiLive, config, aiEngine } from "../config.ts";
+import { callTool, type ContentBlock } from "./llm.ts";
 import { offlineVerify } from "./offline.ts";
 import type { Contract, Milestone, Submission, Verdict, ConditionFinding } from "../../shared/types.ts";
 
@@ -100,7 +100,7 @@ export function outcomeFrom(findings: ConditionFinding[], threshold: number, inj
 
 export async function verifyMilestone(c: Contract, m: Milestone, sub: Submission): Promise<Verdict & { injection: boolean; injectionNote?: string }> {
   const at = new Date().toISOString();
-  if (!claudeLive()) {
+  if (!aiLive()) {
     // The rules engine can count and measure but can't see, so it never pays on its own:
     // a passing rules verdict goes to the client for one-click approval.
     const r = offlineVerify(m, sub);
@@ -151,7 +151,7 @@ export async function verifyMilestone(c: Contract, m: Milestone, sub: Submission
   const o = outcomeFrom(findings, c.autoReleaseThreshold, input.injection_detected);
   return {
     at,
-    engine: "claude",
+    engine: aiEngine(),
     model: model ?? config.ai.model,
     ...o,
     findings,

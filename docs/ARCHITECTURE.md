@@ -18,7 +18,7 @@ flowchart LR
     E --> DB[(SQLite WAL<br/>contracts, jobs,<br/>idempotency, refs)]
     E --> Q[Job queue]
     W[Workers] --> Q
-    W --> AI[Claude<br/>compile / verify / arbitrate / ask]
+    W --> AI[Gemini or Claude<br/>compile / verify / arbitrate / ask]
     W --> K[Kernel<br/>cloud browsers]
     W --> GH[GitHub API]
     E --> PP[PayPal REST<br/>Orders, Authorizations,<br/>Captures, Payouts]
@@ -157,7 +157,7 @@ One instance comfortably serves a hackathon and an early product. SQLite in WAL 
 | Forged PayPal webhooks | Signature verification against PayPal's API before anything is processed |
 | Clickjacking | `frame-ancestors 'none'` and `X-Frame-Options: DENY` |
 | Secrets in logs | Keys are never logged; invite codes never reach the server's URL logs; paths are logged with IDs masked |
-| AI or key outage | Automatic fallback to the rules engine, which never auto-pays; the status page shows the reason |
+| AI outage, bad key or exhausted free quota | Automatic fallback to the rules engine, which never auto-pays; the status page shows the reason |
 | Cost abuse of AI endpoints | Per-IP rate limits on compile, Ask and arbitration |
 
 ## 9. Observability

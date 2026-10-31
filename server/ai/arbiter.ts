@@ -1,6 +1,6 @@
 // Resolves a disputed milestone by weighing the contract, the evidence and both parties' statements.
-import { claudeLive, config } from "../config.ts";
-import { callTool } from "./claude.ts";
+import { aiLive, config, aiEngine } from "../config.ts";
+import { callTool } from "./llm.ts";
 import { offlineArbitrate } from "./offline.ts";
 import type { Contract, Milestone, Ruling } from "../../shared/types.ts";
 
@@ -30,7 +30,7 @@ const system = `You are Covenant's arbiter: a neutral, careful decision-maker fo
 
 export async function arbitrate(c: Contract, m: Milestone): Promise<Ruling> {
   const at = new Date().toISOString();
-  if (!claudeLive()) return { at, engine: "offline", ...offlineArbitrate(m) };
+  if (!aiLive()) return { at, engine: "offline", ...offlineArbitrate(m) };
 
   const lastSub = m.submissions.at(-1);
   const evidence = lastSub
@@ -62,7 +62,7 @@ export async function arbitrate(c: Contract, m: Milestone): Promise<Ruling> {
   const { input, model } = out;
   return {
     at,
-    engine: "claude",
+    engine: aiEngine(),
     model: model ?? config.ai.model,
     payeePercent: Math.round(Math.max(0, Math.min(100, Number(input.payee_percent) || 0))),
     reasoning: input.reasoning,

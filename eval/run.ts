@@ -11,7 +11,7 @@ process.env.DATA_DIR = process.env.DATA_DIR ?? join(dirname(fileURLToPath(import
 
 const { verifyMilestone } = await import("../server/ai/verifier.ts");
 const { fileFacts } = await import("../server/facts.ts");
-const { claudeLive, config } = await import("../server/config.ts");
+const { aiLive, config } = await import("../server/config.ts");
 const { CASES } = await import("./cases.ts");
 import type { Contract, EvidenceItem, Milestone, Submission } from "../shared/types.ts";
 
@@ -38,7 +38,7 @@ function fileItem(name: string, i: number): EvidenceItem {
 
 type Row = { id: string; group: string; expected: "pay" | "no-pay"; got: string; condCorrect: number; condTotal: number; unsafe: boolean; missed: boolean; injExpected: boolean; injCaught: boolean; ms: number; summary: string };
 const rows: Row[] = [];
-const engine = claudeLive() ? `Claude (${config.ai.model})` : "rules engine (offline)";
+const engine = aiLive() ? `Claude (${config.ai.model})` : "rules engine (offline)";
 console.log(`\nCovenant verifier eval — ${CASES.length} cases — ${engine}\n`);
 
 for (const tc of CASES) {
@@ -100,7 +100,7 @@ const summary = [
 
 console.log(`\n${summary}\n`);
 
-const out = join(dirname(fileURLToPath(import.meta.url)), forceOffline || !claudeLive() ? "RESULTS-offline.md" : "RESULTS-claude.md");
+const out = join(dirname(fileURLToPath(import.meta.url)), forceOffline || !aiLive() ? "RESULTS-offline.md" : "RESULTS-claude.md");
 writeFileSync(
   out,
   `# Verifier evaluation — ${engine}\n\nRun on ${new Date().toISOString().slice(0, 10)} with \`npm run eval${forceOffline ? " -- --offline" : ""}\`. Cases are defined in [cases.ts](cases.ts); evidence files are in [fixtures/](fixtures).\n\n${summary}\n\n## Per case\n\n| Case | Group | Expected | Verdict | Conditions | Notes |\n| --- | --- | --- | --- | --- | --- |\n${rows

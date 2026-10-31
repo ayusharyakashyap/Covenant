@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { when, type ContractView } from "../api.ts";
+import { engineLabel } from "../../shared/types.ts";
 
 const INITIAL: Record<string, string> = { payer: "C", payee: "F", ai: "AI", paypal: "PP", system: "·" };
 
@@ -10,7 +11,7 @@ export function Activity({ c }: { c: ContractView }) {
     const t = setTimeout(() => items.forEach((e) => seen.current.add(e.id)), 1800);
     return () => clearTimeout(t);
   });
-  const label = (a: string) => (a === "payer" ? c.payer.name : a === "payee" ? c.payee.name : a === "ai" ? (c.compiledBy.engine === "claude" ? "Claude" : "Rules engine") : a === "paypal" ? "PayPal" : "Covenant");
+  const label = (a: string) => (a === "payer" ? c.payer.name : a === "payee" ? c.payee.name : a === "ai" ? engineLabel(c.compiledBy.engine) : a === "paypal" ? "PayPal" : "Covenant");
   return (
     <div className="panel">
       <h2>Activity</h2>

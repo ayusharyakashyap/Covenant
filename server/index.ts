@@ -8,7 +8,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { join, normalize, extname, resolve } from "node:path";
-import { config, paypalLive, claudeLive, aiHealth } from "./config.ts";
+import { config, paypalLive, aiLive, aiHealth, aiEngine, aiName } from "./config.ts";
 import { store, db } from "./store.ts";
 import { paypal, PayPalError } from "./paypal.ts";
 import * as engine from "./engine.ts";
@@ -47,7 +47,7 @@ const view = publicView;
 
 const publicConfig = (): PublicConfig => ({
   paypal: { mode: paypalLive() ? "sandbox" : "simulated", clientId: paypalLive() ? config.paypal.clientId : undefined, currency: config.paypal.currency },
-  ai: { engine: claudeLive() ? "claude" : "offline", model: claudeLive() ? config.ai.model : undefined },
+  ai: { engine: aiLive() ? aiEngine() : "offline", model: aiLive() ? config.ai.model : undefined },
   kernel: kernelLive(),
   agStudioLicense: config.agStudioLicense || undefined,
   demoTools: demoTools(),
@@ -73,7 +73,7 @@ route("GET", "/api/health", async () => ({ ok: true }));
 route("GET", "/api/config", async () => publicConfig());
 route("GET", "/api/status", async () => ({
   paypal: paypalLive() ? { mode: "sandbox", base: config.paypal.base, webhooks: Boolean(config.paypal.webhookId) } : { mode: "simulated" },
-  ai: claudeLive() ? { engine: "claude", model: config.ai.model } : { engine: "offline", reason: config.ai.apiKey ? `Claude unavailable: ${aiHealth.reason}` : "No API key configured" },
+  ai: aiLive() ? { engine: aiEngine(), model: config.ai.model } : { engine: "offline", reason: config.ai.apiKey ? `${aiName()} unavailable: ${aiHealth.reason}` : "No AI key configured" },
   kernel: kernelLive(),
   agStudioLicensed: Boolean(config.agStudioLicense),
   notifications: Boolean(process.env.NOTIFY_WEBHOOK_URL),
@@ -284,7 +284,7 @@ server.listen(config.port, () => {
   startWorkers();
   console.log(`\n  Covenant running at http://localhost:${config.port}`);
   console.log(`  PayPal: ${paypalLive() ? `sandbox (${config.paypal.base})` : "test mode (simulated). Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET for the PayPal sandbox"}`);
-  console.log(`  AI:     ${claudeLive() ? `Claude (${config.ai.model})` : "rules engine. Set ANTHROPIC_API_KEY to use Claude"}`);
+  console.log(`  AI:     ${aiLive() ? `${aiName()} (${config.ai.model})` : "rules engine. Set GEMINI_API_KEY (free) or ANTHROPIC_API_KEY"}`);
   console.log(`  Kernel: ${kernelLive() ? "on" : "off"}   Demo tools: ${demoTools() ? "on" : "off"}\n`);
 });
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, day, money, type ContractView } from "../api.ts";
 import { useToast } from "../app.tsx";
 import { EvidenceForm } from "./EvidenceForm.tsx";
-import type { Milestone as M, Role } from "../../shared/types.ts";
+import { engineLabel, type Milestone as M, type Role } from "../../shared/types.ts";
 
 const STATUS: Record<M["status"], string> = {
   open: "Waiting for work",
@@ -33,7 +33,7 @@ export function MilestoneCard({ c, m, role, keyFor, onChange }: { c: ContractVie
   const funded = c.status === "active";
   const verdict = m.verdict;
   const last = m.submissions.at(-1);
-  const engineName = verdict?.engine === "claude" ? "Claude" : "Rules engine";
+  const engineName = engineLabel(verdict?.engine);
 
   async function act(label: string, path: string, body: unknown = {}, done?: string, idempotencyKey?: string) {
     setBusy(label);

@@ -13,11 +13,13 @@
     "start": "node --import tsx server/index.ts",
     "dev": "node scripts/build.mjs --watch & DEMO_TOOLS=1 node --import tsx --watch server/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test server/money.test.ts server/engine.test.ts server/http.test.ts",
+    "test": "tsx --test server/money.test.ts server/llm.test.ts server/engine.test.ts server/http.test.ts",
     "smoke": "tsx scripts/smoke.ts",
     "mcp": "tsx mcp/server.ts",
     "eval": "tsx eval/run.ts",
-    "demo": "DEMO_TOOLS=1 node --import tsx server/index.ts"
+    "demo": "DEMO_TOOLS=1 node --import tsx server/index.ts",
+    "prestart": "node scripts/build.mjs",
+    "predemo": "node scripts/build.mjs"
   },
   "dependencies": {
     "esbuild": "^0.28.0",

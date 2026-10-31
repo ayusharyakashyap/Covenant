@@ -2,9 +2,9 @@
 // plus "Ask": Claude answers a question about the money and returns a grid view to show it.
 import { store } from "./store.ts";
 import { roleForKey } from "./access.ts";
-import { claudeLive, config } from "./config.ts";
-import { callTool } from "./ai/claude.ts";
-import type { Contract } from "../shared/types.ts";
+import { aiLive, aiEngine, config } from "./config.ts";
+import { callTool } from "./ai/llm.ts";
+import { engineLabel, type Contract, type Engine } from "../shared/types.ts";
 
 export interface Pair { id: string; key: string }
 
@@ -76,7 +76,7 @@ export function portfolio(pairs: Pair[]) {
         paid: dollars(mPaid),
         returned: dollars(mReturned),
         held: funded && !s && m.status !== "refunded" ? dollars(m.amountCents) : 0,
-        verifier: m.verdict ? (m.verdict.engine === "claude" ? "Claude" : "Rules engine") : "",
+        verifier: m.verdict ? engineLabel(m.verdict.engine) : "",
         outcome: m.verdict?.outcome ?? "",
         confidence: m.verdict ? Math.round(m.verdict.confidence * 100) : null,
         decidedBy: decidedBy(c, m.id),
@@ -124,7 +124,7 @@ export interface GridView {
   filters: { field: string; op: (typeof OPS)[number]; value?: string | number }[];
   sort?: { field: string; dir: "asc" | "desc" };
 }
-export interface AskResult { answer: string; view: GridView; engine: "claude" | "offline"; model?: string }
+export interface AskResult { answer: string; view: GridView; engine: Engine; model?: string }
 
 const tool = {
   name: "show_answer",
@@ -174,7 +174,7 @@ function offlineAsk(q: string, rows: MilestoneRow[]): AskResult {
 export async function ask(question: string, rows: MilestoneRow[]): Promise<AskResult> {
   const q = question.trim().slice(0, 500);
   if (!q) return offlineAsk("", rows);
-  if (!claudeLive()) return offlineAsk(q, rows);
+  if (!aiLive()) return offlineAsk(q, rows);
   try {
     const { input, model } = await callTool<{ answer: string; columns: string[]; filters: GridView["filters"]; sort?: GridView["sort"] }>({
       system:
@@ -191,7 +191,7 @@ export async function ask(question: string, rows: MilestoneRow[]): Promise<AskRe
         filters: (input.filters ?? []).filter((f) => (FIELDS as readonly string[]).includes(f.field) && (OPS as readonly string[]).includes(f.op)),
         sort: input.sort && (FIELDS as readonly string[]).includes(input.sort.field) ? input.sort : undefined,
       },
-      engine: "claude",
+      engine: aiEngine(),
       model: model ?? config.ai.model,
     };
   } catch {

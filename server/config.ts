@@ -23,6 +23,19 @@ loadEnvFile(resolve(process.cwd(), ".env"));
 
 const env = (k: string, d = "") => (process.env[k] ?? d).trim();
 
+// AI provider: Gemini (free tier available) or Claude. Explicit AI_PROVIDER wins; otherwise
+// whichever key is set, preferring Gemini when both are present.
+export type AiProvider = "gemini" | "claude";
+function aiConfig() {
+  const geminiKey = env("GEMINI_API_KEY");
+  const claudeKey = env("ANTHROPIC_API_KEY");
+  const wanted = env("AI_PROVIDER").toLowerCase();
+  const provider: AiProvider = wanted === "claude" || wanted === "anthropic" ? "claude" : wanted === "gemini" ? "gemini" : geminiKey ? "gemini" : "claude";
+  return provider === "gemini"
+    ? { provider, apiKey: geminiKey, model: env("GEMINI_MODEL", "gemini-3.6-flash"), base: env("GEMINI_API_BASE", "https://generativelanguage.googleapis.com") }
+    : { provider, apiKey: claudeKey, model: env("ANTHROPIC_MODEL", "claude-sonnet-5-5"), base: env("ANTHROPIC_API_BASE", "https://api.anthropic.com") };
+}
+
 export const config = {
   port: Number(env("PORT", "8787")),
   publicUrl: env("PUBLIC_URL", ""),
@@ -35,11 +48,7 @@ export const config = {
     currency: env("CURRENCY", "USD"),
     platformFeePercent: Number(env("PLATFORM_FEE_PERCENT", "0")),
   },
-  ai: {
-    apiKey: env("ANTHROPIC_API_KEY"),
-    model: env("ANTHROPIC_MODEL", "claude-sonnet-5-5"),
-    base: env("ANTHROPIC_API_BASE", "https://api.anthropic.com"),
-  },
+  ai: aiConfig(),
   autoReleaseThreshold: Number(env("AUTO_RELEASE_THRESHOLD", "0.8")),
   agStudioLicense: env("AG_STUDIO_LICENSE"),
 };
@@ -52,10 +61,13 @@ export const paypalLive = () => !simulated() && Boolean(config.paypal.clientId &
 // If the key stops working (expired, out of credit, outage), fall back to the offline engine
 // for a while instead of failing requests. Cleared automatically after the cool-down.
 export const aiHealth = { degradedUntil: 0, reason: "" };
-export function markClaudeDegraded(reason: string, ms = 10 * 60 * 1000) {
+export function markAiDegraded(reason: string, ms = 10 * 60 * 1000) {
   aiHealth.degradedUntil = Date.now() + ms;
   aiHealth.reason = reason;
-  console.warn(`[ai] Claude unavailable (${reason}); using the offline engine for ${Math.round(ms / 60000)} min`);
+  console.warn(`[ai] ${aiName()} unavailable (${reason}); using the rules engine for ${Math.round(ms / 60000)} min`);
 }
-export const claudeConfigured = () => Boolean(config.ai.apiKey);
-export const claudeLive = () => !simulated() && claudeConfigured() && Date.now() > aiHealth.degradedUntil;
+export const aiConfigured = () => Boolean(config.ai.apiKey);
+export const aiLive = () => !simulated() && aiConfigured() && Date.now() > aiHealth.degradedUntil;
+/** The engine label recorded on compiled contracts, verdicts and rulings. */
+export const aiEngine = (): AiProvider => config.ai.provider;
+export const aiName = (e: string = config.ai.provider) => (e === "gemini" ? "Gemini" : e === "claude" ? "Claude" : "The rules engine");

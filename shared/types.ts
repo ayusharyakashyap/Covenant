@@ -56,6 +56,8 @@ export interface Submission {
   pendingLinks?: string[]; // fetched by the background verifier
 }
 
+export type Engine = "claude" | "gemini" | "offline";
+
 export interface ConditionFinding {
   conditionId: string;
   met: boolean;
@@ -66,7 +68,7 @@ export interface ConditionFinding {
 
 export interface Verdict {
   at: string;
-  engine: "claude" | "offline";
+  engine: Engine;
   model?: string;
   outcome: "pass" | "fail" | "uncertain";
   confidence: number;
@@ -76,7 +78,7 @@ export interface Verdict {
 
 export interface Ruling {
   at: string;
-  engine: "claude" | "offline";
+  engine: Engine;
   model?: string;
   payeePercent: number; // 0..100 share of the milestone released to the payee
   reasoning: string;
@@ -175,7 +177,7 @@ export interface Contract {
   funding?: Funding;
   events: ContractEvent[];
   ledger: LedgerEntry[];
-  compiledBy: { engine: "claude" | "offline"; model?: string };
+  compiledBy: { engine: Engine; model?: string };
   autoReleaseThreshold: number; // verifier confidence required to release without a human
   // Hashes only. Raw keys are shown once to their owner and never stored.
   access: { payerHash: string; payeeHash?: string; inviteHash?: string; inviteCreatedAt?: string; joinedAt?: string };
@@ -184,9 +186,12 @@ export interface Contract {
 
 export interface PublicConfig {
   paypal: { mode: "sandbox" | "simulated"; clientId?: string; currency: string };
-  ai: { engine: "claude" | "offline"; model?: string };
+  ai: { engine: Engine; model?: string };
   kernel: boolean;
   agStudioLicense?: string;
   demoTools: boolean;
   webhooks: boolean;
 }
+
+/** Human-readable name of the engine that made a decision. */
+export const engineLabel = (e: Engine | undefined) => (e === "gemini" ? "Gemini" : e === "claude" ? "Claude" : "Rules engine");

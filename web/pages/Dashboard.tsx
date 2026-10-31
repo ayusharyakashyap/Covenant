@@ -3,6 +3,7 @@ import { day, keyring, loadScript, money, when } from "../api.ts";
 import { ConfigCtx, Link, useToast } from "../app.tsx";
 import { covenantTheme, loadAgGrid, toFilterModel } from "../components/grid.ts";
 import { Timeline } from "../components/Timeline.tsx";
+import { engineLabel } from "../../shared/types.ts";
 
 type View = { columns: string[]; filters: { field: string; op: string; value?: string | number }[]; sort?: { field: string; dir: "asc" | "desc" } };
 type Portfolio = {
@@ -105,7 +106,7 @@ export function Dashboard() {
       const r = await res.json();
       setTab("milestones");
       setView(r.view);
-      setAnswer({ text: r.answer, engine: r.engine === "claude" ? `Claude (${r.model})` : "rules engine" });
+      setAnswer({ text: r.answer, engine: r.engine !== "offline" ? `${engineLabel(r.engine)} (${r.model})` : "rules engine" });
     } catch {
       toast("Couldn't answer that right now.", true);
     } finally {

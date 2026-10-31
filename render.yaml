@@ -34,7 +34,11 @@ services:
         sync: false
       - key: PAYPAL_WEBHOOK_ID
         sync: false
-      - key: ANTHROPIC_API_KEY
+      - key: GEMINI_API_KEY        # free tier: aistudio.google.com/apikey
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: ANTHROPIC_API_KEY     # optional alternative to Gemini
         sync: false
       - key: ANTHROPIC_MODEL
         value: claude-sonnet-5-5

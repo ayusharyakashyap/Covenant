@@ -6,7 +6,7 @@ import { MilestoneCard } from "../components/Milestone.tsx";
 import { PayPalFund } from "../components/PayPalFund.tsx";
 import { Ledger } from "../components/Ledger.tsx";
 import { Activity } from "../components/Activity.tsx";
-import type { Role } from "../../shared/types.ts";
+import { engineLabel, type Role } from "../../shared/types.ts";
 
 export function ContractPage({ id }: { id: string }) {
   const toast = useToast();
@@ -182,7 +182,7 @@ export function ContractPage({ id }: { id: string }) {
               </>
             )}
             <p className="faint" style={{ marginTop: 12 }}>
-              Compiled by {c.compiledBy.engine === "claude" ? `Claude (${c.compiledBy.model})` : "the offline rules engine"}. Money math, deadlines and penalties are enforced by code, not by the model.
+              Compiled by {c.compiledBy.engine !== "offline" ? `${engineLabel(c.compiledBy.engine)} (${c.compiledBy.model})` : "the offline rules engine"}. Money math, deadlines and penalties are enforced by code, not by the model.
             </p>
           </div>
 

@@ -297,6 +297,14 @@ server.keepAliveTimeout = 65_000; // longer than typical load balancer idle time
 server.headersTimeout = 66_000;
 server.requestTimeout = 120_000;
 
+server.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(`\n  Port ${config.port} is already in use, probably by an earlier Covenant still running.\n  Stop it with:  lsof -ti :${config.port} | xargs kill\n  or run on another port:  PORT=8788 npm run demo\n`);
+    process.exit(1);
+  }
+  throw err;
+});
+
 server.listen(config.port, () => {
   startWorkers();
   console.log(`\n  Covenant running at http://localhost:${config.port}`);

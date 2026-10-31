@@ -60,7 +60,7 @@ const simulated = () => simulation.getStore() === true;
 export const paypalLive = () => !simulated() && Boolean(config.paypal.clientId && config.paypal.clientSecret);
 // If the key stops working (expired, out of credit, outage), fall back to the offline engine
 // for a while instead of failing requests. Cleared automatically after the cool-down.
-export const aiHealth = { degradedUntil: 0, reason: "" };
+export const aiHealth = { degradedUntil: 0, reason: "", lastError: "", lastErrorAt: 0, latenciesMs: [] as number[] };
 export function markAiDegraded(reason: string, ms = 10 * 60 * 1000) {
   aiHealth.degradedUntil = Date.now() + ms;
   aiHealth.reason = reason;

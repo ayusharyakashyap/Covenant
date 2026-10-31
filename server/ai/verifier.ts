@@ -1,8 +1,8 @@
 // Verifies submitted evidence against a milestone's conditions.
 // Evidence is untrusted: the model is told to treat it as data and to report injection attempts.
 import { readFileSync } from "node:fs";
-import { aiLive, config, aiEngine } from "../config.ts";
-import { callTool, type ContentBlock } from "./llm.ts";
+import { aiLive, config, aiEngine, aiName } from "../config.ts";
+import { callTool, AiError, type ContentBlock } from "./llm.ts";
 import { offlineVerify } from "./offline.ts";
 import type { Contract, Milestone, Submission, Verdict, ConditionFinding } from "../../shared/types.ts";
 
@@ -98,7 +98,7 @@ export function outcomeFrom(findings: ConditionFinding[], threshold: number, inj
   return { outcome: "uncertain", confidence };
 }
 
-export async function verifyMilestone(c: Contract, m: Milestone, sub: Submission): Promise<Verdict & { injection: boolean; injectionNote?: string }> {
+export async function verifyMilestone(c: Contract, m: Milestone, sub: Submission, opts?: { retryable?: boolean }): Promise<Verdict & { injection: boolean; injectionNote?: string }> {
   const at = new Date().toISOString();
   if (!aiLive()) {
     // The rules engine can count and measure but can't see, so it never pays on its own:
@@ -126,12 +126,14 @@ export async function verifyMilestone(c: Contract, m: Milestone, sub: Submission
   try {
     out = await callTool<ToolOut>({ system, tool, content, maxTokens: 3000 });
   } catch (e) {
-    // Claude unavailable: use the rules engine, but never auto-pay on a fallback verdict.
+    // Busy provider: let the job queue retry later. Anything else: the rules engine checks it,
+    // but a fallback verdict never pays out on its own.
+    if (e instanceof AiError && e.retryable && opts?.retryable) throw e;
     const r = offlineVerify(m, sub);
     const o = outcomeFrom(r.findings, c.autoReleaseThreshold, r.injection);
     return {
       at, engine: "offline", outcome: o.outcome === "pass" ? "uncertain" : o.outcome, confidence: o.confidence, findings: r.findings,
-      summary: `Claude was unavailable (${e instanceof Error ? e.message : "error"}), so the rules engine checked this and the client decides. ${r.summary}`,
+      summary: `${aiName()} was unavailable (${e instanceof Error ? e.message : "error"}), so the rules engine checked this and the client decides. ${r.summary}`,
       injection: r.injection, injectionNote: r.injectionNote,
     };
   }

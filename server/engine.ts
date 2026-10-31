@@ -288,7 +288,7 @@ registerJob("verify", async ({ contractId, milestoneId, submissionId }, job) => 
     // 2. Verify against a snapshot, outside the lock.
     const snap = current();
     if (!snap) return;
-    const verdict = await verifyMilestone(snap.c, snap.m, snap.sub);
+    const verdict = await verifyMilestone(snap.c, snap.m, snap.sub, { retryable: job.attempts < job.maxAttempts });
 
     // 3. Apply under the lock, only if nothing changed meanwhile.
     await withLock(contractId, async () => {
@@ -500,7 +500,13 @@ export function resolveDispute(id: string, role: Role | null, mid: string) {
     requireRole(role, "payer", "payee");
     const m = milestone(c, mid);
     if (m.status !== "disputed" || !m.dispute) throw new HttpError(409, "There's no open dispute on this milestone.");
-    const ruling = await arbitrate(c, m);
+    let ruling;
+    try {
+      ruling = await arbitrate(c, m);
+    } catch (e) {
+      // A binding ruling never falls back to rules because the model was briefly busy.
+      throw new HttpError(503, `${aiName()} is busy right now, so no ruling was made and nothing moved. Try again in a minute. (${e instanceof Error ? e.message : "error"})`);
+    }
     m.dispute.ruling = ruling;
     event(c, "ai", "ruling", `${aiName(ruling.engine)} ruled ${ruling.payeePercent}% to ${c.payee.name}: ${ruling.reasoning}`, m.id);
     await release(c, m, ruling.payeePercent, "arbiter");

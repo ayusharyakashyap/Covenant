@@ -168,7 +168,7 @@ function offlineAsk(q: string, rows: MilestoneRow[]): AskResult {
     return pick(`Verifier decisions by milestone, lowest confidence first.`, { columns: [...base, "verifier", "outcome", "confidence", "decidedBy"], filters: [{ field: "outcome", op: "notEqual", value: "" }], sort: { field: "confidence", dir: "asc" } });
   }
   const paid = rows.reduce((a, x) => a + x.paid, 0);
-  return pick(`$${paid.toFixed(2)} has been paid out across ${rows.length} milestones. Add an Anthropic API key for free-form questions.`, { columns: [...base, "paid", "held", "returned"], filters: [], sort: { field: "paid", dir: "desc" } });
+  return pick(`$${paid.toFixed(2)} has been paid out across ${rows.length} milestones. With an AI key configured, you can ask anything.`, { columns: [...base, "paid", "held", "returned"], filters: [], sort: { field: "paid", dir: "desc" } });
 }
 
 export async function ask(question: string, rows: MilestoneRow[]): Promise<AskResult> {

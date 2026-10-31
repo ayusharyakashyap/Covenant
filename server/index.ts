@@ -71,9 +71,18 @@ const needContract = (ctx: Ctx) => {
 
 route("GET", "/api/health", async () => ({ ok: true }));
 route("GET", "/api/config", async () => publicConfig());
+const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
+
 route("GET", "/api/status", async () => ({
   paypal: paypalLive() ? { mode: "sandbox", base: config.paypal.base, webhooks: Boolean(config.paypal.webhookId) } : { mode: "simulated" },
-  ai: aiLive() ? { engine: aiEngine(), model: config.ai.model } : { engine: "offline", reason: config.ai.apiKey ? `${aiName()} unavailable: ${aiHealth.reason}` : "No AI key configured" },
+  ai: aiLive()
+    ? {
+        engine: aiEngine(),
+        model: config.ai.model,
+        medianMs: median(aiHealth.latenciesMs),
+        ...(aiHealth.lastErrorAt > Date.now() - 10 * 60_000 ? { recentError: aiHealth.lastError } : {}),
+      }
+    : { engine: "offline", reason: config.ai.apiKey ? `${aiName()} unavailable: ${aiHealth.reason}` : "No AI key configured" },
   kernel: kernelLive(),
   agStudioLicensed: Boolean(config.agStudioLicense),
   notifications: Boolean(process.env.NOTIFY_WEBHOOK_URL),

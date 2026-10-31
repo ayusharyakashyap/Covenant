@@ -13,7 +13,7 @@ let proc: ChildProcess;
 
 before(async () => {
   proc = spawn(process.execPath, ["--import", "tsx", "server/index.ts"], {
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: mkdtempSync(join(tmpdir(), "covenant-http-")), PAYPAL_CLIENT_ID: "", PAYPAL_CLIENT_SECRET: "", ANTHROPIC_API_KEY: "", KERNEL_API_KEY: "", LOG_LEVEL: "silent", DEMO_TOOLS: "" },
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: mkdtempSync(join(tmpdir(), "covenant-http-")), PAYPAL_CLIENT_ID: "", PAYPAL_CLIENT_SECRET: "", ANTHROPIC_API_KEY: "", GEMINI_API_KEY: "", KERNEL_API_KEY: "", LOG_LEVEL: "silent", DEMO_TOOLS: "" },
     stdio: "ignore",
   });
   for (let i = 0; i < 100; i++) {

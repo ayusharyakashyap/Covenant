@@ -1,4 +1,4 @@
-// Offline fallback engine, used when ANTHROPIC_API_KEY is not set.
+// Offline fallback engine, used when no AI key is set (or the key stops working).
 // It is intentionally simple and transparent (rules, not AI) and the UI labels it as such,
 // so anyone can explore the full PayPal flow without an API key.
 import type { CompiledContract, CompiledMilestone } from "./compiler.ts";
@@ -244,7 +244,7 @@ export function offlineArbitrate(m: Milestone) {
   const pct = Math.round((share * 100) / 5) * 5;
   return {
     payeePercent: pct,
-    reasoning: `Rule-based ruling: ${f.filter((x) => x.met).length} of ${f.length || "?"} conditions were verified, so ${pct}% of the milestone goes to the payee and the rest returns to the payer. Add an Anthropic API key for a reasoned ruling that weighs both statements.`,
+    reasoning: `Rule-based ruling: ${f.filter((x) => x.met).length} of ${f.length || "?"} conditions were verified, so ${pct}% of the milestone goes to the payee and the rest returns to the payer. With an AI key configured, the arbiter weighs both statements instead.`,
     citations: f.map((x) => `${m.conditions.find((c) => c.id === x.conditionId)?.text}: ${x.met ? "met" : "not met"}`),
   };
 }

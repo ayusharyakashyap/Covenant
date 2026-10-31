@@ -9,6 +9,7 @@ process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "covenant-test-"));
 process.env.PAYPAL_CLIENT_ID = "";
 process.env.PAYPAL_CLIENT_SECRET = "";
 process.env.ANTHROPIC_API_KEY = "";
+process.env.GEMINI_API_KEY = "";
 process.env.LOG_LEVEL = "silent";
 
 const engine = await import("./engine.ts");

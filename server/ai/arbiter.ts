@@ -1,6 +1,6 @@
 // Resolves a disputed milestone by weighing the contract, the evidence and both parties' statements.
 import { aiLive, config, aiEngine } from "../config.ts";
-import { callTool } from "./llm.ts";
+import { callTool, AiError } from "./llm.ts";
 import { offlineArbitrate } from "./offline.ts";
 import type { Contract, Milestone, Ruling } from "../../shared/types.ts";
 
@@ -56,8 +56,11 @@ export async function arbitrate(c: Contract, m: Milestone): Promise<Ruling> {
       },
     ],
     });
-  } catch {
-    return { at, engine: "offline", ...offlineArbitrate(m) };
+  } catch (e) {
+    // Bad key or exhausted quota: the rules engine rules (it is labelled as such).
+    // Busy or overloaded: the caller reports it and nothing moves.
+    if (e instanceof AiError && e.fatal) return { at, engine: "offline", ...offlineArbitrate(m) };
+    throw e;
   }
   const { input, model } = out;
   return {

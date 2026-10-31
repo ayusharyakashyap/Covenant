@@ -23,7 +23,7 @@ export function Status() {
       <p className="muted">What this deployment is connected to right now.</p>
       <ul className="status-list panel">
         <Row name="Payments" ok={s.paypal.mode === "sandbox"} detail={s.paypal.mode === "sandbox" ? `PayPal sandbox${s.paypal.webhooks ? ", webhooks verified" : ""}` : "Test mode: PayPal is simulated until sandbox keys are configured"} />
-        <Row name="Verification" ok={s.ai.engine !== "offline"} detail={s.ai.engine !== "offline" ? `${s.ai.engine === "gemini" ? "Gemini" : "Claude"} (${s.ai.model})` : `Rules engine. ${s.ai.reason}. It never pays out on its own.`} />
+        <Row name="Verification" ok={s.ai.engine !== "offline"} detail={s.ai.engine !== "offline" ? `${s.ai.engine === "gemini" ? "Gemini" : "Claude"} (${s.ai.model})${s.ai.medianMs ? `, typically ${(s.ai.medianMs / 1000).toFixed(1)}s per check` : ""}${s.ai.recentError ? `. Recently: ${s.ai.recentError}` : ""}` : `Rules engine. ${s.ai.reason}. It never pays out on its own.`} />
         <Row name="Website checks" ok={s.kernel} detail={s.kernel ? "Delivered websites open in Kernel cloud browsers" : "Links are fetched directly (no screenshots)"} />
         <Row name="Report builder" ok={s.agStudioLicensed} detail={s.agStudioLicensed ? "AG Studio licensed" : "AG Studio runs with a trial watermark"} />
         <Row name="Notifications" ok={s.notifications} detail={s.notifications ? "Webhook notifications on (e.g. Zapier)" : "No notification webhook configured"} />

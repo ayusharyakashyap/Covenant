@@ -29,6 +29,19 @@ if (!paypalLive()) {
     });
     const oj = (await o.json()) as { id?: string; message?: string };
     o.ok ? ok(`Orders v2 (AUTHORIZE) works — test order ${oj.id}`) : (bad(`Orders v2 failed: ${oj.message}`), failed++);
+    // Payouts are paid from the business account's balance in the contract currency.
+    const b = await fetch(`${config.paypal.base}/v1/reporting/balances?currency_code=ALL`, { headers: { Authorization: `Bearer ${access_token}` } });
+    if (b.ok) {
+      const bj = (await b.json()) as { balances?: { currency: string; total_balance?: { value: string }; available_balance?: { value: string } }[] };
+      const rows = (bj.balances ?? []).map((x) => `${x.currency} ${x.available_balance?.value ?? x.total_balance?.value ?? "?"}`);
+      const cur = (bj.balances ?? []).find((x) => x.currency === config.paypal.currency);
+      const avail = Number(cur?.available_balance?.value ?? cur?.total_balance?.value ?? 0);
+      avail > 0
+        ? ok(`Business account balance: ${rows.join(", ")} (payouts draw from ${config.paypal.currency})`)
+        : bad(`Business account has no available ${config.paypal.currency} to pay out (balances: ${rows.join(", ") || "none"}). Add ${config.paypal.currency} funds to the sandbox Business account, or set CURRENCY to a currency it holds`);
+    } else {
+      console.log(`  · Couldn't read the business balance (HTTP ${b.status}); payouts need ${config.paypal.currency} funds in the sandbox Business account`);
+    }
     config.paypal.webhookId ? ok("PAYPAL_WEBHOOK_ID set") : console.log("  · PAYPAL_WEBHOOK_ID not set (optional; payouts are also polled)");
   } catch (e) {
     bad(`PayPal: ${e instanceof Error ? e.message : e}`);

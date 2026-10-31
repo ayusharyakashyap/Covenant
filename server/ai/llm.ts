@@ -3,7 +3,7 @@
 // Every AI step in Covenant is a single forced "tool call": the model must fill in a JSON form
 // (the tool's input schema) rather than write prose. Claude does this with tool_choice;
 // Gemini with function calling in mode ANY. Callers don't need to know which is in use.
-import { config, markAiDegraded, aiName } from "../config.ts";
+import { config, markAiDegraded, aiName, aiHealth } from "../config.ts";
 
 export type ContentBlock =
   | { type: "text"; text: string }
@@ -28,9 +28,13 @@ type Result<T> = { input: T; model: string };
 export async function callTool<T>(opts: CallOpts): Promise<Result<T>> {
   const run = config.ai.provider === "gemini" ? gemini<T> : claude<T>;
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  const attempts = 4;
+  for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      return await run(opts);
+      const t0 = Date.now();
+      const out = await run(opts);
+      aiHealth.latenciesMs = [...aiHealth.latenciesMs.slice(-19), Date.now() - t0];
+      return out;
     } catch (e) {
       lastErr = e;
       if (e instanceof AiError && e.fatal) {
@@ -39,11 +43,15 @@ export async function callTool<T>(opts: CallOpts): Promise<Result<T>> {
         throw e;
       }
       if (e instanceof AiError && !e.retryable) throw e;
-      await new Promise((r) => setTimeout(r, 800 * (attempt + 1) ** 2));
+      // Overloaded (503) or rate limited: back off 1.5s, 4s, 8s with jitter.
+      if (attempt < attempts - 1) await new Promise((r) => setTimeout(r, [1500, 4000, 8000][attempt] + Math.random() * 500));
     }
   }
-  markAiDegraded(lastErr instanceof Error ? lastErr.message : "unreachable", 2 * 60 * 1000);
-  throw lastErr instanceof Error ? lastErr : new AiError(`${aiName()} request failed`);
+  // A busy provider isn't a broken one: report it as retryable, don't switch engines globally.
+  aiHealth.lastError = lastErr instanceof Error ? lastErr.message : "unreachable";
+  aiHealth.lastErrorAt = Date.now();
+  const msg = lastErr instanceof Error ? lastErr.message : `${aiName()} request failed`;
+  throw new AiError(msg, true);
 }
 
 // ---------------------------------------------------------------- Claude (Anthropic Messages API)
@@ -159,7 +167,7 @@ async function parseGemini<T>(res: Response, model: string, opts: CallOpts): Pro
     const status = `${json.error?.status ?? ""} ${(json.error?.details ?? []).map((d) => d.reason ?? "").join(" ")}`;
     // 429 is usually the free tier's per-minute limit: worth retrying. A daily quota is not.
     if (res.status === 429 && !/per day|daily/i.test(msg)) throw new AiError(`Gemini rate limit: ${msg}`, true);
-    if (res.status >= 500) throw new AiError(`Gemini API ${res.status}`, true);
+    if (res.status >= 500) throw new AiError(`Gemini is overloaded right now (HTTP ${res.status})`, true);
     throw new AiError(msg, false, res.status === 401 || res.status === 403 || res.status === 429 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|UNAUTHENTICATED|billing|quota/i.test(`${status} ${msg}`));
   }
   if (json.promptFeedback?.blockReason) throw new AiError(`Gemini declined the request (${json.promptFeedback.blockReason})`);

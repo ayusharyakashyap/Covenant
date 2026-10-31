@@ -278,7 +278,9 @@ function NextStep({ c, role, keyFor, onChange, act }: { c: ContractView; role: R
       return (
         <div className="panel action">
           <h2>Waiting for {c.payer.name} to fund</h2>
-          <p className="muted">Once they approve on PayPal, {money(c.totalCents, c.currency)} is held for you and you can start submitting work.</p>
+          <p className="muted">
+            Once they approve on PayPal, {money(c.totalCents, c.currency)} is held for you. An upload box then appears under each milestone below, and this page updates on its own.
+          </p>
         </div>
       );
     return (

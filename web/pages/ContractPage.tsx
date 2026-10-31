@@ -12,7 +12,16 @@ export function ContractPage({ id }: { id: string }) {
   const toast = useToast();
   const [c, setC] = useState<ContractView | null>(null);
   const [error, setError] = useState("");
-  const [keys, setKeys] = useState(keyring.get(id));
+  const [keys, setKeys] = useState(() => {
+    // Agents (the MCP server) hand the payer a link like /c/<id>#payer=<key>. The fragment never
+    // reaches the server; the key is kept in this browser and removed from the address bar.
+    const m = location.hash.match(/^#(payer|payee)=([\w-]{20,64})$/);
+    if (m) {
+      keyring.set(id, m[1] as Role, m[2]);
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+    return keyring.get(id);
+  });
   const params = new URLSearchParams(location.search);
   const fresh = params.get("fresh") === "1";
   // One browser normally holds one side's key. Both only exist for sample data.

@@ -18,20 +18,25 @@ const safeName = (n: string) => n.replace(/[^\w.\-]+/g, "_").slice(-80) || "file
 export function storeUpload(contractId: string, u: UploadInput): EvidenceItem {
   const buf = Buffer.from(u.dataBase64.replace(/^data:[^,]*,/, ""), "base64");
   if (buf.length > MAX_FILE) throw Object.assign(new Error(`${u.name} is larger than 15 MB.`), { status: 413 });
-  const id = `ev_${nanoid(8)}`;
-  const dir = join(store.uploadsDir, contractId);
-  mkdirSync(dir, { recursive: true });
-  const fileName = `${id}-${safeName(u.name)}`;
-  const storedPath = join(dir, fileName);
-  writeFileSync(storedPath, buf);
   const facts = fileFacts(buf, u.name);
-  // Accept only formats we can inspect; executables, archives of unknown type etc. are refused.
+  // Accept only formats we can inspect; executables, archives of unknown type etc. are refused
+  // before anything touches the disk.
   if (!ALLOWED.has(facts.detectedType)) {
     throw Object.assign(new Error(`${u.name} isn't a supported file type. Upload images, PDFs, SVG, CSV or text files.`), { status: 415 });
   }
   // Trust the bytes, not the browser's label: a JPEG renamed .png is still a JPEG.
   const sniffed: Record<string, string> = { png: "image/png", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", pdf: "application/pdf", svg: "image/svg+xml", csv: "text/csv", text: "text/plain" };
+  const ext: Record<string, string> = { png: ".png", jpeg: ".jpg", gif: ".gif", webp: ".webp", pdf: ".pdf", svg: ".svg", csv: ".csv", text: ".txt" };
   const mime = sniffed[facts.detectedType] ?? (u.mime || guessMime(u.name));
+  const id = `ev_${nanoid(8)}`;
+  const dir = join(store.uploadsDir, contractId);
+  mkdirSync(dir, { recursive: true });
+  // Stored under the extension of what the bytes really are, so the file is always served as that
+  // type (an "essay.html" that is plain text is stored and served as .txt).
+  const stem = safeName(u.name.replace(/\.[^.]*$/, "")).slice(0, 70);
+  const fileName = `${id}-${stem}${ext[facts.detectedType] ?? ".bin"}`;
+  const storedPath = join(dir, fileName);
+  writeFileSync(storedPath, buf);
   const isImage = /^image\/(png|jpeg|gif|webp)$/.test(mime);
   return {
     id,

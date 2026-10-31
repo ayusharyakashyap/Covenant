@@ -119,7 +119,7 @@ async function callTool(name: string, a: any): Promise<string> {
         `contract_id: ${c.id}`,
         `payer_key: ${r.payerKey}   (keep secret: it controls the money)`,
         `invite_code: ${r.inviteCode}   (one-time; give it to the payee)`,
-        `Payer: open ${BASE}/c/${c.id} after adding the payer key, or use the web app that created it. A human must approve the PayPal hold.`,
+        `Payer: open ${BASE}/c/${c.id}#payer=${r.payerKey} in a browser to review, sign and fund. A human must approve the PayPal hold.`,
         `Payee invite link: ${BASE}/join/${c.id}#${r.inviteCode}`,
       ].join("\n");
     }

@@ -171,3 +171,14 @@ test("editing your own details only asks you to sign again; changing the terms r
   await engine.updateDraft(k3.id, "payer", { autoReleaseThreshold: 0.9 });
   assert.deepEqual((await get(k3.id)).signatures, {}, "release policy change resets the freelancer's signature");
 });
+
+test("uploads are stored as what their bytes are, and refused types never reach the disk", async () => {
+  const { storeUpload } = await import("./evidence.ts");
+  const html = storeUpload("cov_test", { name: "essay.html", mime: "text/html", dataBase64: Buffer.from("<script>alert(1)</script> hello").toString("base64") });
+  assert.match(html.url!, /\.txt$/);
+  assert.equal(html.mime, "text/plain");
+  const { readdirSync } = await import("node:fs");
+  const before = readdirSync(join(process.env.DATA_DIR!, "uploads", "cov_test")).length;
+  assert.throws(() => storeUpload("cov_test", { name: "x.png", mime: "image/png", dataBase64: Buffer.from("MZ\x90\x00 not an image").toString("base64") }));
+  assert.equal(readdirSync(join(process.env.DATA_DIR!, "uploads", "cov_test")).length, before);
+});

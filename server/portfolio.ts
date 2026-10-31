@@ -20,6 +20,7 @@ export interface MilestoneRow {
   daysLate: number;
   penalty: number;
   paid: number;
+  payout: string;
   returned: number;
   held: number;
   verifier: string;
@@ -74,6 +75,7 @@ export function portfolio(pairs: Pair[]) {
         daysLate: s?.daysLate ?? (m.deadline && !s && Date.now() > Date.parse(m.deadline) ? Math.ceil((Date.now() - Date.parse(m.deadline)) / 864e5) : 0),
         penalty: dollars(s?.penaltyCents ?? 0),
         paid: dollars(mPaid),
+        payout: s?.payoutStatus ?? "",
         returned: dollars(mReturned),
         held: funded && !s && m.status !== "refunded" ? dollars(m.amountCents) : 0,
         verifier: m.verdict ? engineLabel(m.verdict.engine) : "",
@@ -102,6 +104,8 @@ export function portfolio(pairs: Pair[]) {
       contracts: contracts.length,
       held: Math.round(sum("held") * 100) / 100,
       paid: Math.round(sum("paid") * 100) / 100,
+      // Captured for the freelancer but not yet in their PayPal (payout pending, unclaimed or failed).
+      notReceived: Math.round(milestones.filter((m) => m.payout && m.payout !== "SUCCESS").reduce((a, m) => a + m.paid, 0) * 100) / 100,
       returned: Math.round(sum("returned") * 100) / 100,
       penalties: Math.round(sum("penalty") * 100) / 100,
       verifications: verified.length,
@@ -116,7 +120,7 @@ export function portfolio(pairs: Pair[]) {
 
 // ---------------------------------------------------------------- Ask
 
-const FIELDS = ["contract", "role", "counterparty", "milestone", "amount", "status", "deadline", "daysLate", "penalty", "paid", "returned", "held", "verifier", "outcome", "confidence", "decidedBy", "disputed", "rulingPercent", "submissions"] as const;
+const FIELDS = ["contract", "role", "counterparty", "milestone", "amount", "status", "deadline", "daysLate", "penalty", "paid", "payout", "returned", "held", "verifier", "outcome", "confidence", "decidedBy", "disputed", "rulingPercent", "submissions"] as const;
 const OPS = ["equals", "notEqual", "contains", "greaterThan", "lessThan", "isTrue", "isFalse"] as const;
 
 export interface GridView {

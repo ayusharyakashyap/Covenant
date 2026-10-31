@@ -7,7 +7,7 @@ import { engineLabel } from "../../shared/types.ts";
 
 type View = { columns: string[]; filters: { field: string; op: string; value?: string | number }[]; sort?: { field: string; dir: "asc" | "desc" } };
 type Portfolio = {
-  kpis: { contracts: number; held: number; paid: number; returned: number; penalties: number; verifications: number; autoPaidShare: number; disputes: number };
+  kpis: { contracts: number; held: number; paid: number; notReceived: number; returned: number; penalties: number; verifications: number; autoPaidShare: number; disputes: number };
   contracts: Record<string, any>[];
   milestones: Record<string, any>[];
   ledger: Record<string, any>[];
@@ -151,7 +151,11 @@ export function Dashboard() {
 
       <section className="kpis" aria-label="Totals">
         <div className="kpi held"><span>Held by PayPal</span><b>{usd(k.held)}</b></div>
-        <div className="kpi released"><span>Paid out</span><b>{usd(k.paid)}</b></div>
+        <div className="kpi released">
+          <span>Paid out</span>
+          <b>{usd(k.paid)}</b>
+          {k.notReceived > 0 && <small className="kpi-note">{usd(k.notReceived)} not yet in the freelancer's PayPal</small>}
+        </div>
         <div className="kpi"><span>Returned to clients</span><b>{usd(k.returned)}</b></div>
         <div className="kpi"><span>Late penalties withheld</span><b>{usd(k.penalties)}</b></div>
         <div className="kpi"><span>Settled without a human</span><b>{k.autoPaidShare}%</b></div>

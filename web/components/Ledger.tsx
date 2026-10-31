@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { loadScript, money, when, type ContractView } from "../api.ts";
+import { money, when, type ContractView } from "../api.ts";
+import { loadAgGrid } from "./grid.ts";
 
 declare global {
   interface Window {
@@ -7,7 +8,6 @@ declare global {
   }
 }
 
-const AG_SRC = "https://cdn.jsdelivr.net/npm/ag-grid-community@34.3.1/dist/ag-grid-community.min.js";
 
 const TYPE_LABEL: Record<string, string> = {
   authorization: "Hold placed",
@@ -42,7 +42,7 @@ export function Ledger({ c }: { c: ContractView }) {
 
   useEffect(() => {
     let alive = true;
-    loadScript(AG_SRC)
+    loadAgGrid()
       .then(() => {
         if (!alive || !el.current || !window.agGrid) throw new Error("AG Grid unavailable");
         const ag = window.agGrid;

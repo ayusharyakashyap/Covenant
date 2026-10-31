@@ -118,3 +118,10 @@ test("AI endpoints are rate limited", async () => {
   }
   assert.ok(limited, "expected a 429 after a burst");
 });
+
+test("vendor route only serves browser assets of allowed packages", async () => {
+  assert.equal((await fetch(`${BASE}/vendor/ag-studio/package.json`)).status, 404);
+  assert.equal((await fetch(`${BASE}/vendor/ag-studio/..%2f..%2fpackage.json`)).status, 404);
+  assert.equal((await fetch(`${BASE}/vendor/react/index.js`)).status, 404);
+  assert.equal((await fetch(`${BASE}/vendor/tsx/dist/cli.mjs`)).status, 404);
+});

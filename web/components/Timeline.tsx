@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { day, money } from "../api.ts";
+import { day, loadFirst, money } from "../api.ts";
 
 // Bryntum Gantt (trial build, public npm) loaded by script tag. Namespace: bryntum.gantt
-const BRYNTUM = "https://cdn.jsdelivr.net/npm/@bryntum/gantt-trial@7.2.2";
+const BRYNTUM_SOURCES = ["/vendor/@bryntum/gantt-trial", "https://cdn.jsdelivr.net/npm/@bryntum/gantt-trial@7.2.2", "https://unpkg.com/@bryntum/gantt-trial@7.2.2"];
 const THEMES = ["gantt.stockholm.css", "gantt.css", "stockholm-light.css"];
 
 type MRow = { contractId: string; contract: string; milestone: string; amount: number; status: string; deadline: string | null; paid: number; held: number };
@@ -46,12 +46,14 @@ export function Timeline({ contracts, milestones }: { contracts: CRow[]; milesto
     let alive = true;
     (async () => {
       try {
-        // CSS: try known theme file names for this release.
+        // Script first (local npm copy, then CDNs); then a theme from the same source.
+        const used = await loadFirst(BRYNTUM_SOURCES.map((b) => `${b}/gantt.umd.js`));
+        const base = used.replace(/\/gantt\.umd\.js$/, "");
         for (const css of THEMES) {
           const ok = await new Promise<boolean>((res) => {
             const l = document.createElement("link");
             l.rel = "stylesheet";
-            l.href = `${BRYNTUM}/${css}`;
+            l.href = `${base}/${css}`;
             l.setAttribute("data-bryntum-theme", "");
             l.onload = () => res(true);
             l.onerror = () => (l.remove(), res(false));
@@ -59,14 +61,6 @@ export function Timeline({ contracts, milestones }: { contracts: CRow[]; milesto
           });
           if (ok) break;
         }
-        await new Promise<void>((res, rej) => {
-          if ((window as any).bryntum?.gantt) return res();
-          const s = document.createElement("script");
-          s.src = `${BRYNTUM}/gantt.umd.js`;
-          s.onload = () => res();
-          s.onerror = () => rej(new Error("Bryntum unavailable"));
-          document.head.appendChild(s);
-        });
         const B = (window as any).bryntum?.gantt;
         if (!alive || !B?.Gantt || !el.current) throw new Error("Bryntum unavailable");
         gantt = new B.Gantt({

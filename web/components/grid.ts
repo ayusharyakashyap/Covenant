@@ -1,7 +1,7 @@
 // AG Grid Community loaded from its official CDN, themed to Covenant's palette.
-import { loadScript } from "../api.ts";
+import { loadFirst, vendorUrls } from "../api.ts";
 
-export const AG_GRID_SRC = "https://cdn.jsdelivr.net/npm/ag-grid-community@34.3.1/dist/ag-grid-community.min.js";
+export const AG_GRID_SRC = vendorUrls("ag-grid-community", "34.3.1", "dist/ag-grid-community.min.js");
 
 declare global {
   interface Window {
@@ -10,7 +10,7 @@ declare global {
 }
 
 export async function loadAgGrid(): Promise<any> {
-  await loadScript(AG_GRID_SRC);
+  await loadFirst(AG_GRID_SRC);
   if (!window.agGrid?.createGrid) throw new Error("AG Grid unavailable");
   return window.agGrid;
 }

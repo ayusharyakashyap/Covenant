@@ -104,3 +104,25 @@ export function loadScript(src: string, attrs: Record<string, string> = {}): Pro
     document.head.appendChild(s);
   });
 }
+
+/** Load the first script that works: Covenant's own copy (from npm), then public CDNs. */
+export async function loadFirst(urls: string[], attrs: Record<string, string> = {}): Promise<string> {
+  let last: unknown;
+  for (const u of urls) {
+    try {
+      await loadScript(u, attrs);
+      return u;
+    } catch (e) {
+      document.querySelector(`script[src="${u}"]`)?.remove();
+      last = e;
+    }
+  }
+  throw last instanceof Error ? last : new Error("Couldn't load a required component");
+}
+
+/** Candidate URLs for a file in an npm package, local copy first. */
+export const vendorUrls = (pkg: string, version: string, path: string) => [
+  `/vendor/${pkg}/${path}`,
+  `https://cdn.jsdelivr.net/npm/${pkg}@${version}/${path}`,
+  `https://unpkg.com/${pkg}@${version}/${path}`,
+];

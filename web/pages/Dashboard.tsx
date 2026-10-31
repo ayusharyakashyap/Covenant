@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { day, keyring, loadScript, money, when } from "../api.ts";
+import { day, keyring, loadFirst, money, vendorUrls, when } from "../api.ts";
 import { ConfigCtx, Link, useToast } from "../app.tsx";
 import { covenantTheme, loadAgGrid, toFilterModel } from "../components/grid.ts";
 import { Timeline } from "../components/Timeline.tsx";
@@ -117,7 +117,7 @@ export function Dashboard() {
   async function seed() {
     setSeeding(true);
     try {
-      const res = await fetch("/api/demo/seed", { method: "POST" });
+      const res = await fetch("/api/demo/seed", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const r = await res.json();
       if (!res.ok) throw new Error(r.error);
       for (const c of r.contracts as { id: string; keys: { payer: string; payee: string } }[]) {
@@ -248,7 +248,7 @@ function FallbackTable({ rows, columns }: { rows: Record<string, any>[]; columns
   );
 }
 
-const STUDIO_SRC = "https://cdn.jsdelivr.net/npm/ag-studio@3.0.0/dist/ag-studio.min.js";
+const STUDIO_SRC = vendorUrls("ag-studio", "3.0.0", "dist/ag-studio.min.js");
 
 /** AG Studio: drag-and-drop reports over the same three data sources. */
 function StudioPanel({ data, licence, onClose }: { data: Portfolio; licence?: string; onClose: () => void }) {
@@ -256,7 +256,7 @@ function StudioPanel({ data, licence, onClose }: { data: Portfolio; licence?: st
   const [err, setErr] = useState("");
   useEffect(() => {
     let api: any;
-    loadScript(STUDIO_SRC)
+    loadFirst(STUDIO_SRC)
       .then(() => {
         const s = (window as any).agStudio;
         if (!s?.createStudio || !el.current) throw new Error("AG Studio didn't load");
@@ -287,7 +287,7 @@ function StudioPanel({ data, licence, onClose }: { data: Portfolio; licence?: st
         <span className="faint">Drag fields from milestones, ledger or contracts to build charts and tables. Powered by AG Studio.</span>
         <button className="btn ghost small" onClick={onClose}>Close</button>
       </div>
-      {err ? <p className="muted" style={{ padding: 24 }}>Couldn't load AG Studio ({err}). Check your connection and try again.</p> : <div ref={el} className="studio-host" />}
+      {err ? <p className="muted" style={{ padding: 24 }}>Couldn't load AG Studio. Run <code>npm install</code> and restart the server, or check your connection. ({err})</p> : <div ref={el} className="studio-host" />}
     </div>
   );
 }

@@ -11,11 +11,11 @@ export class HttpError extends Error {
 const CSP = [
   "default-src 'self'",
   // PayPal JS SDK + the CDNs serving AG Grid, AG Studio and Bryntum
-  "script-src 'self' https://www.paypal.com https://www.sandbox.paypal.com https://*.paypal.com https://*.paypalobjects.com https://cdn.jsdelivr.net",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-  "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
+  "script-src 'self' https://www.paypal.com https://www.sandbox.paypal.com https://*.paypal.com https://*.paypalobjects.com https://cdn.jsdelivr.net https://unpkg.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com",
+  "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net https://unpkg.com",
   "img-src 'self' data: blob: https://*.paypal.com https://*.paypalobjects.com",
-  "connect-src 'self' https://*.paypal.com https://cdn.jsdelivr.net",
+  "connect-src 'self' https://*.paypal.com https://cdn.jsdelivr.net https://unpkg.com",
   "frame-src https://*.paypal.com",
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",

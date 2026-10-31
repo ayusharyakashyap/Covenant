@@ -25,7 +25,10 @@
     "esbuild": "^0.28.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "tsx": "^4.23.0"
+    "tsx": "^4.23.0",
+    "ag-studio": "3.0.0",
+    "ag-grid-community": "34.3.1",
+    "@bryntum/gantt-trial": "7.2.2"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

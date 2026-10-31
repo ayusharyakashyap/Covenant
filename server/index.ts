@@ -28,7 +28,7 @@ const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
   ".webp": "image/webp", ".pdf": "application/pdf", ".json": "application/json", ".txt": "text/plain; charset=utf-8",
-  ".woff2": "font/woff2", ".ico": "image/x-icon", ".md": "text/plain; charset=utf-8", ".map": "application/json", ".csv": "text/csv; charset=utf-8",
+  ".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf", ".ico": "image/x-icon", ".md": "text/plain; charset=utf-8", ".map": "application/json", ".csv": "text/csv; charset=utf-8",
 };
 
 /** What a client may see: no key hashes, no server file paths. */
@@ -166,12 +166,21 @@ function stream(req: IncomingMessage, res: ServerResponse, id: string) {
 }
 
 // ---------------------------------------------------------------- static files
+// Browser components installed from npm are served from Covenant itself, so the app never depends on a CDN.
+const VENDOR_PACKAGES = ["ag-studio", "ag-grid-community", "@bryntum/gantt-trial"];
+const NODE_MODULES = resolve(process.cwd(), "node_modules");
+
 async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: string, headers: Record<string, string>) {
   let base = PUBLIC_DIR;
   let rel = pathname;
   if (pathname.startsWith("/uploads/")) {
     base = store.uploadsDir;
     rel = pathname.slice("/uploads".length);
+  } else if (pathname.startsWith("/vendor/")) {
+    const pkg = VENDOR_PACKAGES.find((p) => pathname.startsWith(`/vendor/${p}/`));
+    if (!pkg || !/\.(js|css|woff2?|ttf|svg|png|map)$/.test(pathname)) return sendJson(res, 404, { error: "Not found" }, headers);
+    base = join(NODE_MODULES, pkg);
+    rel = pathname.slice(`/vendor/${pkg}`.length);
   }
   let file: string;
   try {
@@ -184,7 +193,8 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: 
     const s = await stat(file);
     if (s.isFile()) {
       const type = MIME[extname(file).toLowerCase()] ?? "application/octet-stream";
-      const h: Record<string, string> = { ...headers, "Content-Type": type, "Content-Length": String(s.size), "Cache-Control": pathname.startsWith("/dist/") ? "public, max-age=300" : "no-cache" };
+      const cache = pathname.startsWith("/vendor/") ? "public, max-age=86400" : pathname.startsWith("/dist/") ? "public, max-age=300" : "no-cache";
+      const h: Record<string, string> = { ...headers, "Content-Type": type, "Content-Length": String(s.size), "Cache-Control": cache };
       if (base === store.uploadsDir) {
         // Uploaded files are untrusted: never let them run script or be framed as the app.
         h["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox";
@@ -197,7 +207,7 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: 
   } catch {
     /* fall through */
   }
-  if (pathname.startsWith("/uploads/") || pathname.startsWith("/dist/") || extname(pathname)) return sendJson(res, 404, { error: "Not found" }, headers);
+  if (pathname.startsWith("/uploads/") || pathname.startsWith("/dist/") || pathname.startsWith("/vendor/") || extname(pathname)) return sendJson(res, 404, { error: "Not found" }, headers);
   const html = securityHeaders(req, true);
   res.writeHead(200, { ...html, "Content-Type": MIME[".html"], "Cache-Control": "no-cache" });
   res.end(await readFile(join(PUBLIC_DIR, "index.html")));

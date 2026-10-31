@@ -73,15 +73,22 @@ export function MilestoneCard({ c, m, role, keyFor, onChange }: { c: ContractVie
       <ul className="conds">
         {m.conditions.map((cond) => {
           const f = verdict?.findings.find((x) => x.conditionId === cond.id);
+          // Approval conditions are the client's decision, not a failed check.
+          const clientCall = cond.kind === "approval" && f && !f.met;
+          const approved = clientCall && m.status === "released";
           return (
             <li key={cond.id}>
-              <span className={`tick ${f ? (f.met ? "yes" : "no") : ""}`} aria-label={f ? (f.met ? "Met" : "Not met") : "Not checked yet"}>
-                {f ? (f.met ? "✓" : "×") : ""}
+              <span
+                className={`tick ${approved ? "yes" : clientCall ? "" : f ? (f.met ? "yes" : "no") : ""}`}
+                aria-label={approved ? "Approved by the client" : clientCall ? "Client decides" : f ? (f.met ? "Met" : "Not met") : "Not checked yet"}
+              >
+                {approved ? "✓" : clientCall ? "" : f ? (f.met ? "✓" : "×") : ""}
               </span>
               <div>
                 {cond.text}
                 <span className="kind">{KIND[cond.kind]}</span>
-                {f && <span className="conf">{Math.round(f.confidence * 100)}% sure</span>}
+                {f && !clientCall && <span className="conf">{Math.round(f.confidence * 100)}% sure</span>}
+                {clientCall && <span className="conf">{approved ? "Approved by the client" : "The client decides"}</span>}
                 {f && <span className="reason">{f.reasoning}</span>}
               </div>
             </li>
@@ -216,7 +223,10 @@ export function MilestoneCard({ c, m, role, keyFor, onChange }: { c: ContractVie
 
       {/* ---- role-specific actions */}
       {funded && role === "payee" && ["open", "rejected"].includes(m.status) && busy !== "submit" && (
-        <EvidenceForm busy={busy === "submit"} onSubmit={(input) => act("submit", "/evidence", input)} />
+        <EvidenceForm
+          busy={busy === "submit"}
+          linkHint={m.conditions.some((x) => x.kind === "github_pr") ? "https://github.com/owner/repo/pull/42" : m.conditions.some((x) => x.kind === "link") ? "https://your-live-site.com" : "Optional: links to the work"}
+          onSubmit={(input) => act("submit", "/evidence", input)} />
       )}
 
       {funded && role === "payer" && ["needs_review", "rejected"].includes(m.status) && (

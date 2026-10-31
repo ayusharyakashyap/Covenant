@@ -3,7 +3,7 @@ import { readFile } from "../api.ts";
 
 type Picked = { name: string; mime: string; dataBase64: string; size: number };
 
-export function EvidenceForm({ onSubmit, busy }: { onSubmit: (input: { files: Picked[]; links: string[]; note: string }) => void; busy: boolean }) {
+export function EvidenceForm({ onSubmit, busy, linkHint = "https://…" }: { onSubmit: (input: { files: Picked[]; links: string[]; note: string }) => void; busy: boolean; linkHint?: string }) {
   const [files, setFiles] = useState<Picked[]>([]);
   const [links, setLinks] = useState("");
   const [note, setNote] = useState("");
@@ -49,7 +49,7 @@ export function EvidenceForm({ onSubmit, busy }: { onSubmit: (input: { files: Pi
       <div className="two">
         <div className="field">
           <label htmlFor="links">Links, one per line</label>
-          <textarea id="links" value={links} onChange={(e) => setLinks(e.target.value)} placeholder="https://github.com/owner/repo/pull/42" style={{ minHeight: 64 }} />
+          <textarea id="links" value={links} onChange={(e) => setLinks(e.target.value)} placeholder={linkHint} style={{ minHeight: 64 }} />
         </div>
         <div className="field">
           <label htmlFor="note">Note to the client</label>

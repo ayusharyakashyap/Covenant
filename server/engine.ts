@@ -418,7 +418,15 @@ async function closeOut(c: Contract) {
     ledger(c, { type: "void", amountCents: remaining, status: "RELEASED", reference: f.authorizationId!, note: `Final capture released the remaining hold to ${c.payer.name}` });
   }
   c.status = "completed";
-  event(c, "system", "completed", `Contract complete. ${c.payee.name} received ${fmt(f.capturedCents, c.currency)}; ${fmt(remaining, c.currency)} stayed with ${c.payer.name}.`);
+  const failed = c.milestones.filter((m) => m.settlement?.payoutStatus === "FAILED");
+  const owed = failed.reduce((a, m) => a + (m.settlement?.netCents ?? 0), 0);
+  event(
+    c,
+    "system",
+    "completed",
+    `Contract complete. ${fmt(f.capturedCents, c.currency)} was captured for ${c.payee.name}; ${fmt(remaining, c.currency)} stayed with ${c.payer.name}.` +
+      (failed.length ? ` ${fmt(owed, c.currency)} still has to reach ${c.payee.name}: retry the failed payout${failed.length > 1 ? "s" : ""} once the business account has funds.` : ""),
+  );
 }
 
 function schedulePayoutCheck(cid: string, mid: string, batchId: string) {

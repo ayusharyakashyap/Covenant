@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Brightside Bakery — Order online</title>
+  <meta name="description" content="Fresh sourdough, croissants and celebration cakes. Order online for pickup." />
+  <style>
+    :root { --crust: #5a2b0f; --wheat: #e8a23d; --cream: #fff8ee; --ink: #2b1a0e; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Georgia, "Times New Roman", serif; background: var(--cream); color: var(--ink); line-height: 1.55; }
+    header { background: var(--crust); color: #fff; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    header b { font-size: 24px; letter-spacing: .02em; }
+    nav a { color: #fff; margin-left: 18px; text-decoration: none; font-family: system-ui, sans-serif; font-size: 15px; }
+    .hero { padding: 64px 24px 40px; max-width: 980px; margin: 0 auto; }
+    .hero h1 { font-size: clamp(36px, 6vw, 64px); margin: 0 0 12px; line-height: 1.05; }
+    .hero p { font-size: 19px; max-width: 46ch; }
+    .btn { display: inline-block; background: #e26a2c; color: #fff; padding: 14px 26px; border-radius: 40px; text-decoration: none; font-family: system-ui, sans-serif; font-weight: 600; border: 0; font-size: 16px; cursor: pointer; }
+    section { max-width: 980px; margin: 0 auto; padding: 24px; }
+    .menu { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .item { background: #fff; border: 1px solid #ecdcc6; border-radius: 14px; padding: 18px; }
+    .item h3 { margin: 0 0 4px; }
+    .price { font-family: system-ui, sans-serif; font-weight: 700; color: var(--crust); }
+    form { background: #fff; border: 1px solid #ecdcc6; border-radius: 14px; padding: 22px; display: grid; gap: 14px; max-width: 560px; font-family: system-ui, sans-serif; }
+    label { display: grid; gap: 4px; font-size: 14px; }
+    input, select { padding: 10px 12px; border: 1px solid #d8c4a8; border-radius: 8px; font-size: 16px; }
+    .ok { display: none; background: #e3f3e8; color: #1d6b43; padding: 12px 14px; border-radius: 8px; }
+    footer { text-align: center; padding: 40px 24px; color: #7a5a3e; font-family: system-ui, sans-serif; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <b>brightside</b>
+    <nav><a href="#menu">Menu</a><a href="#order">Order online</a><a href="#visit">Visit</a></nav>
+  </header>
+
+  <div class="hero">
+    <h1>Fresh every sunrise.</h1>
+    <p>Sourdough, croissants and celebration cakes, baked before dawn in our neighbourhood kitchen. Order online and pick up warm.</p>
+    <a class="btn" href="#order">Order online</a>
+  </div>
+
+  <section id="menu">
+    <h2>Today's menu</h2>
+    <div class="menu">
+      <div class="item"><h3>Country sourdough</h3><p>48-hour ferment, crackling crust.</p><span class="price">$9.00</span></div>
+      <div class="item"><h3>Butter croissant</h3><p>Laminated with French butter, 27 layers.</p><span class="price">$4.50</span></div>
+      <div class="item"><h3>Cinnamon morning bun</h3><p>Orange zest and brown sugar.</p><span class="price">$5.00</span></div>
+      <div class="item"><h3>Celebration cake</h3><p>Vanilla sponge, berries, chantilly. Order 48 hours ahead.</p><span class="price">from $42.00</span></div>
+    </div>
+  </section>
+
+  <section id="order">
+    <h2>Order online for pickup</h2>
+    <form id="order-form">
+      <label>Item
+        <select name="item" required>
+          <option>Country sourdough ($9.00)</option>
+          <option>Butter croissant ($4.50)</option>
+          <option>Cinnamon morning bun ($5.00)</option>
+          <option>Celebration cake (from $42.00)</option>
+        </select>
+      </label>
+      <label>Quantity <input name="qty" type="number" min="1" max="24" value="1" required /></label>
+      <label>Pickup slot
+        <select name="slot" required>
+          <option>7:00 – 8:00</option><option>8:00 – 9:00</option><option>9:00 – 10:00</option><option>Afternoon (12:00 – 14:00)</option>
+        </select>
+      </label>
+      <label>Your name <input name="name" required autocomplete="name" /></label>
+      <label>Phone <input name="phone" type="tel" required autocomplete="tel" /></label>
+      <button class="btn" type="submit">Place order</button>
+      <div class="ok" id="ok" role="status">Thanks! Your order is in. We'll text you when it's ready for pickup.</div>
+    </form>
+  </section>
+
+  <section id="visit">
+    <h2>Visit</h2>
+    <p>12 Market Lane · Open Tuesday to Sunday, 7am – 3pm</p>
+  </section>
+
+  <footer>© Brightside Bakery</footer>
+
+  <script>
+    document.getElementById("order-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      document.getElementById("ok").style.display = "block";
+      this.querySelector("button").textContent = "Order placed";
+    });
+  </script>
+</body>
+</html>

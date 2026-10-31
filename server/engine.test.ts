@@ -155,3 +155,18 @@ test("rejects non-agreements, wrong roles and unsupported files", async () => {
   await assert.rejects(engine.submitEvidence(c.id, "payee", c.milestones[0].id, { files: [exe] }), /supported file type/);
   await assert.rejects(engine.submitEvidence(c.id, "payer", c.milestones[0].id, { note: "done" }), /Only the payee/);
 });
+
+test("editing your own details only asks you to sign again; changing the terms resets both", async () => {
+  const k = await joined(deal);
+  await engine.sign(k.id, "payer");
+  // The freelancer adds their payout email after the client signed: the client's signature stands.
+  await engine.updateDraft(k.id, "payee", { payee: { email: "maya.paypal@example.com" } });
+  assert.ok((await get(k.id)).signatures.payer, "client signature kept");
+  // A no-op save changes nothing.
+  await engine.updateDraft(k.id, "payee", { payee: { email: "maya.paypal@example.com" } });
+  assert.ok((await get(k.id)).signatures.payer);
+  const k3 = await joined(deal);
+  await engine.sign(k3.id, "payee");
+  await engine.updateDraft(k3.id, "payer", { autoReleaseThreshold: 0.9 });
+  assert.deepEqual((await get(k3.id)).signatures, {}, "release policy change resets the freelancer's signature");
+});

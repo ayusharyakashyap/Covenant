@@ -193,8 +193,15 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: 
     const s = await stat(file);
     if (s.isFile()) {
       const type = MIME[extname(file).toLowerCase()] ?? "application/octet-stream";
-      const cache = pathname.startsWith("/vendor/") ? "public, max-age=86400" : pathname.startsWith("/dist/") ? "public, max-age=300" : "no-cache";
-      const h: Record<string, string> = { ...headers, "Content-Type": type, "Content-Length": String(s.size), "Cache-Control": cache };
+      // The app bundle isn't content-hashed, so browsers revalidate it (cheap 304s) and always run the latest build.
+      const cache = pathname.startsWith("/vendor/") ? "public, max-age=86400" : "no-cache";
+      const etag = `W/"${s.size.toString(36)}-${Math.floor(s.mtimeMs).toString(36)}"`;
+      const h: Record<string, string> = { ...headers, "Content-Type": type, "Content-Length": String(s.size), "Cache-Control": cache, ETag: etag };
+      if (base !== store.uploadsDir && req.headers["if-none-match"] === etag) {
+        delete h["Content-Length"];
+        res.writeHead(304, h);
+        return res.end();
+      }
       if (base === store.uploadsDir) {
         // Uploaded files are untrusted: never let them run script or be framed as the app.
         h["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox";

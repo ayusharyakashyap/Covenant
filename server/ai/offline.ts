@@ -39,12 +39,29 @@ export function inferKind(text: string): ConditionKind {
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Shortens at a word boundary so titles never end mid-word. */
+const short = (s: string, n = 48) => (s.length <= n ? s : s.slice(0, n).replace(/\s+\S*$/, "").replace(/[,;:]$/, "") + "…");
+
+// What the deal is about, for the contract title.
+const TOPICS: [RegExp, string][] = [
+  [/logo/i, "logo design"],
+  [/translat/i, "translation"],
+  [/blog|article|copywrit|posts?\b/i, "writing"],
+  [/photo|picture/i, "photography"],
+  [/csv|data[- ]clean|dataset|spreadsheet/i, "data cleaning"],
+  [/video|edit(?:ing)? footage/i, "video"],
+  [/\bapp\b|mobile/i, "app"],
+  [/site|website|landing page/i, "website"],
+];
+const topic = (t: string) => TOPICS.find(([re]) => re.test(t))?.[1];
 
 export function offlineCompile(text: string, now: Date): CompiledContract {
   const clean = text.replace(/\s+/g, " ").trim();
   const amounts = [...clean.matchAll(/\$\s?([\d,]+(?:\.\d{1,2})?)/g)].map((m) => Number(m[1].replace(/,/g, "")));
-  const payeeMatch = clean.match(/\b(?:[Pp]ay|[Hh]ire|[Pp]aying)\s+(\p{Lu}\p{Ll}+(?:\s\p{Lu}\p{Ll}+)?)/u);
-  const payerMatch = clean.match(/\b(\p{Lu}\p{Ll}+)\s+(?:will\s+)?pays?\b/u);
+  const payeeMatch =
+    clean.match(/\b(?:[Pp]ay|[Hh]ire|[Pp]aying)\s+(\p{Lu}\p{Ll}+(?:\s\p{Lu}\p{Ll}+)?)/u) ??
+    clean.match(/\bpays?\s+(?:the\s+|our\s+)?([\w-]+(?:\s[\w-]+)?\s(?:agent|bot|team|studio|agency))\b/i);
+  const payerMatch = clean.match(/\b(\p{Lu}\p{Ll}+)\s+(?:will\s+)?pays?\b/u) ?? clean.match(/^(?:our|the)\s+([\w-]+(?:\s[\w-]+)?\s(?:agent|bot|team))\s+(?:will\s+)?pays?\b/i);
   const penalty = clean.match(/(\d+(?:\.\d+)?)\s*%[^.;]*?\b(?:per|a|each)\s+day/i);
   const penaltyCap = clean.match(/(?:max(?:imum)?|capped at|up to)\s*(\d+)\s*%/i);
   const deadlineAll = parseDate(clean, now);
@@ -57,20 +74,47 @@ export function offlineCompile(text: string, now: Date): CompiledContract {
 
   for (const c of clauses) {
     const amount = Number(c[1].replace(/,/g, ""));
-    let body = c[2].replace(/^(?:she|he|they|you|i|we)\s+/i, "").trim();
+    let body = c[2].replace(/^(?:she|he|they|you|i|we|it)\s+(?=\w)/i, "").trim();
     body = body.replace(/\s+by\s+[A-Za-z]{3,9}\.?\s*\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?/i, "").trim();
     const deadline = parseDate(c[2], now) ?? deadlineAll;
     const parts = body.split(/\s*(?:\band\b|,)\s*/).filter((p) => p.length > 2);
     const conditions = (parts.length ? parts : [body]).map((p) => ({ text: cap(p.replace(/^(?:shows?|delivers?|sends?|submits?|ships?)\s+/i, "Delivers ")), kind: inferKind(p) }));
-    milestones.push({ title: cap(body.replace(/\s+by$/i, "")).slice(0, 48), amount, deadline, conditions, late_penalty: pen });
+    milestones.push({ title: short(cap((body.length > 48 && parts.length > 1 ? parts[0] : body).replace(/\s+by$/i, ""))), amount, deadline, conditions, late_penalty: pen });
   }
 
   const total = amounts.length ? (clauses.length && amounts[0] === milestones.reduce((a, m) => a + m.amount, 0) ? amounts[0] : Math.max(...amounts)) : 0;
+  // "4 blog posts ... $80 per post": one milestone per unit when the numbers add up.
+  const units = clean.match(/\b(\d{1,2})\s+([a-z-]+\s)?([a-z]+?)s\b/i);
+  const per = clean.match(/\$\s?([\d,]+(?:\.\d{1,2})?)\s+(?:per|a|each|for each)\s+([a-z]+)/i);
+  if (milestones.length === 0 && units && per && units[3].toLowerCase() === per[2].toLowerCase()) {
+    const n = Number(units[1]);
+    const each = Number(per[1].replace(/,/g, ""));
+    if (n >= 2 && n <= 8 && Math.abs(n * each - total) < 0.01) {
+      const noun = units[3].toLowerCase();
+      const spec = clean.match(new RegExp(`${noun}s\\s+(of\\s+[^,.;]+|about\\s+[^,.;]+)`, "i"))?.[1];
+      const as = clean.match(/delivered\s+as\s+([^,.;]+)/i)?.[1];
+      for (let i = 1; i <= n; i++)
+        milestones.push({
+          title: `${cap(noun)} ${i} of ${n}`,
+          amount: each,
+          deadline: deadlineAll,
+          conditions: [
+            { text: `${cap(noun)} ${i} delivered${spec ? ` (${spec.replace(/\s+about\s+.*$/i, "")})` : ""}`, kind: inferKind(as ?? noun) },
+            ...(spec && /\d+\s*words/i.test(spec) ? [{ text: `At least ${spec.match(/(\d+)\s*words/i)![1]} words`, kind: "text" as ConditionKind }] : []),
+          ],
+          late_penalty: pen,
+        });
+    }
+  }
   if (milestones.length === 0) {
-    const what = clean.match(/\b(?:when|once|after|for)\s+(.+?)(?=[.;]|\bby\b|$)/i)?.[1]?.replace(/^(?:the|a|an)\s+/i, "").trim();
+    const what = (clean.match(/\bto\s+((?:translate|write|design|build|edit|deliver|create|make|clean|produce|record|shoot|develop)\b.+?)(?=[.;]|\bby\b|$)/i)?.[1] ??
+      clean.match(/\b(?:when|once|after|for)\s+(.+?)(?=[.;]|\bby\b|$)/i)?.[1])
+      ?.replace(/^(?:the|a|an)\s+/i, "")
+      .replace(/^(?:it|she|he|they)\s+(?:delivers|sends|submits|ships)\s+/i, "Delivers ")
+      .trim();
     const parts = what ? what.split(/\s*(?:\band\b|,)\s*/).filter((p) => p.length > 2) : [];
     milestones.push({
-      title: what ? cap(what).slice(0, 48) : "Full delivery",
+      title: what ? short(cap(parts[0] ?? what)) : "Full delivery",
       amount: total,
       deadline: deadlineAll,
       conditions: parts.length ? parts.map((p) => ({ text: cap(p), kind: inferKind(p) })) : [{ text: "Work delivered as described in the agreement", kind: "approval" }],
@@ -84,7 +128,7 @@ export function offlineCompile(text: string, now: Date): CompiledContract {
   if (rest && total > sum) {
     const body = rest[1].replace(/^(?:she|he|they|you|i|we)\s+/i, "").trim();
     milestones.push({
-      title: cap(body.replace(/\s+by$/i, "")).slice(0, 48),
+      title: short(cap(body.replace(/\s+by$/i, ""))),
       amount: +(total - sum).toFixed(2),
       deadline: parseDate(rest[1], now) ?? deadlineAll,
       conditions: body.split(/\s*(?:\band\b|,)\s*/).filter((p) => p.length > 2).map((p) => ({ text: cap(p), kind: inferKind(p) })),
@@ -99,17 +143,18 @@ export function offlineCompile(text: string, now: Date): CompiledContract {
   if (milestones.some((m) => m.deadline)) ambiguities.push("Which timezone do the deadlines use? Defaulting to UTC end of day.");
   const emails = [...clean.matchAll(/[\w.+-]+@[\w-]+\.[\w.]+/g)].map((m) => m[0]);
 
-  const payee = payeeMatch?.[1] ?? "Freelancer";
+  const payee = payeeMatch?.[1] ? cap(payeeMatch[1]) : "Freelancer";
+  const about = topic(clean);
   return {
     is_valid_agreement: finalTotal > 0,
     rejection_reason: finalTotal > 0 ? undefined : "I couldn't find an amount to pay. Try including a dollar figure, e.g. \"$500\".",
-    title: `${payee}${/logo/i.test(clean) ? " · logo design" : /site|website/i.test(clean) ? " · website" : ""}`.replace(" · ", " — ").slice(0, 60),
-    summary: `${payerMatch?.[1] ?? "The client"} pays ${payee} $${finalTotal.toFixed(2)} in ${milestones.length} milestone${milestones.length > 1 ? "s" : ""}: ${milestones
+    title: `${payee}${about && !payee.toLowerCase().includes(about.split(" ")[0]) ? ` — ${about}` : ""}`.slice(0, 60),
+    summary: `${payerMatch?.[1] ? cap(payerMatch[1]) : "The client"} pays ${payee} $${finalTotal.toFixed(2)} in ${milestones.length} milestone${milestones.length > 1 ? "s" : ""}: ${milestones
       .map((m) => `$${m.amount.toFixed(2)} for "${m.title}"${m.deadline ? ` due ${m.deadline.slice(0, 10)}` : ""}`)
       .join("; ")}.${pen ? ` Late delivery reduces a milestone by ${pen.percent_per_day}% per day${penaltyCap ? `, up to ${pen.max_percent}%` : ""}.` : ""}`,
     currency: "USD",
     total: finalTotal,
-    payer: { name: payerMatch?.[1] ?? "Client", email: emails[1] ?? "" },
+    payer: { name: payerMatch?.[1] ? cap(payerMatch[1]) : "Client", email: emails[1] ?? "" },
     payee: { name: payee, email: emails[0] ?? "" },
     milestones,
     ambiguities,

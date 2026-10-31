@@ -94,9 +94,11 @@ export function ContractPage({ id }: { id: string }) {
   async function act(path: string, body: unknown, done: string, asRole: Role = role) {
     try {
       update(await api.act(c!.id, keyFor(asRole), path, body));
-      toast(done);
+      if (done) toast(done);
+      return true;
     } catch (e) {
       toast(e instanceof Error ? e.message : "That didn't work.", true);
+      return false;
     }
   }
 
@@ -216,7 +218,7 @@ export function ContractPage({ id }: { id: string }) {
   );
 }
 
-function NextStep({ c, role, keyFor, onChange, act }: { c: ContractView; role: Role; keyFor: (r: Role) => string; onChange: (c: ContractView) => void; act: (p: string, b: unknown, d: string, r?: Role) => Promise<void> }) {
+function NextStep({ c, role, keyFor, onChange, act }: { c: ContractView; role: Role; keyFor: (r: Role) => string; onChange: (c: ContractView) => void; act: (p: string, b: unknown, d: string, r?: Role) => Promise<boolean> }) {
   const me = role === "payer" ? c.payer : c.payee;
   const [name, setName] = useState(me.name);
   const [email, setEmail] = useState(me.email);
@@ -230,12 +232,13 @@ function NextStep({ c, role, keyFor, onChange, act }: { c: ContractView; role: R
     const signed = Boolean(c.signatures[role]);
     const other = role === "payer" ? "payee" : "payer";
     const dirty = name !== me.name || email !== me.email || (role === "payer" && threshold !== Math.round(c.autoReleaseThreshold * 100));
+    const details = { [role]: { name, email }, ...(role === "payer" ? { autoReleaseThreshold: threshold / 100 } : {}) };
     return (
       <div className="panel action">
         <h2>{signed ? `Waiting for ${role === "payer" ? c.payee.name : c.payer.name} to sign` : "Check the terms and sign"}</h2>
         <p className="muted" style={{ marginTop: -4 }}>
           {signed
-            ? "You've signed. Editing anything below clears both signatures."
+            ? (role === "payer" ? "You've signed. Changing the release threshold asks both of you to sign again." : "You've signed. Changing your details means signing again.")
             : role === "payee"
               ? "Add the PayPal email you want to be paid at, then sign."
               : "Review the plain-English terms and milestones, confirm your details, then sign."}
@@ -257,14 +260,14 @@ function NextStep({ c, role, keyFor, onChange, act }: { c: ContractView; role: R
           </div>
         )}
         <div className="buttons">
-          {dirty && (
-            <button className="btn ghost" onClick={() => act("/draft", { [role]: { name, email }, ...(role === "payer" ? { autoReleaseThreshold: threshold / 100 } : {}) }, "Saved.")}>
-              Save details
+          {dirty && signed && (
+            <button className="btn ghost" onClick={() => act("/draft", details, "Saved. Sign again to confirm.")}>
+              Save changes
             </button>
           )}
           {!signed && (
-            <button className="btn" disabled={dirty} onClick={() => act("/sign", {}, "Signed.")}>
-              Sign as {role === "payer" ? "client" : "freelancer"}
+            <button className="btn" onClick={async () => (dirty && !(await act("/draft", details, ""))) || act("/sign", {}, "Signed.")}>
+              {dirty ? "Save and sign" : "Sign"} as {role === "payer" ? "client" : "freelancer"}
             </button>
           )}
           {c.signatures[other] && <span className="faint">{other === "payer" ? c.payer.name : c.payee.name} signed {day(c.signatures[other]!)}</span>}

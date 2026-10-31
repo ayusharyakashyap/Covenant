@@ -1,10 +1,10 @@
-# Verifier evaluation — rules engine (offline)
+# Verifier evaluation — Claude (gemini-3.6-flash)
 
-Run on 2026-10-30 with `npm run eval -- --offline`. Cases are defined in [cases.ts](cases.ts); evidence files are in [fixtures/](fixtures).
+Run on 2026-10-31 with `npm run eval`. Cases are defined in [cases.ts](cases.ts); evidence files are in [fixtures/](fixtures).
 
 | Metric | Result |
 | --- | --- |
-| Engine | rules engine (offline) |
+| Engine | Claude (gemini-3.6-flash) |
 | Cases | 24 |
 | Pay / don't-pay decisions correct | 19/24 (79%) |
 | Individual conditions judged correctly | 30/35 (86%) |
@@ -17,7 +17,7 @@ Run on 2026-10-30 with `npm run eval -- --offline`. Cases are defined in [cases.
 
 | Case | Group | Expected | Verdict | Conditions | Notes |
 | --- | --- | --- | --- | --- | --- |
-| concepts-three-distinct | design | pay | uncertain (missed) | 1/1 | 1 of 1 conditions met by rule-based checks. The rules engine can't judge content, so the client confirms before money moves. |
+| concepts-three-distinct | design | pay | uncertain (missed) | 1/1 | Claude was unavailable (fetch failed), so the rules engine checked this and the client decides. 1 of 1 conditions met by rule-based checks. |
 | concepts-only-two | design | no-pay | fail | 1/1 | 0 of 1 conditions met by rule-based checks. |
 | concepts-recoloured-copies | design | no-pay | uncertain | 0/1 | 1 of 1 conditions met by rule-based checks. The rules engine can't judge content, so the client confirms before money moves. |
 | concepts-off-brief | design | no-pay | uncertain | 0/1 | 1 of 1 conditions met by rule-based checks. The rules engine can't judge content, so the client confirms before money moves. |

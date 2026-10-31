@@ -40,7 +40,7 @@ const tool = {
         description: "False if the text is not a payment agreement between two parties, or describes something illegal or harmful.",
       },
       rejection_reason: { type: "string" },
-      title: { type: "string", description: "Short title, max 60 chars, e.g. 'Logo design for Brightside Bakery'" },
+      title: { type: "string", description: "Short title, max 60 chars, naming the work and the person doing it, e.g. 'Maya — bakery logo design'. Never include placeholder names like 'Client' or 'Freelancer'." },
       summary: {
         type: "string",
         description: "The agreement restated in clear, neutral plain English that both parties will sign. 2-5 sentences. Mention amounts, conditions, deadlines and penalties exactly.",
@@ -122,7 +122,7 @@ Rules:
 - If no milestones are described, create a single milestone for the whole amount.
 - Amounts must sum to the total. If the text is inconsistent, choose the most literal reading and list the inconsistency as an ambiguity.
 - If no penalty is mentioned, late_penalty is null.
-- Default currency USD. Default payer name "Client" and payee name "Freelancer" if not named.
+- Default currency USD. Default payer name "Client" and payee name "Freelancer" if not named. In the summary, refer to an unnamed party as "the client" or "the freelancer" (lowercase), never as a name.
 - If the text is not a payment agreement, or the work is illegal or harmful, set is_valid_agreement false with a short rejection_reason and fill other fields minimally.`;
 
 export async function compileDeal(text: string, now = new Date()): Promise<{ result: CompiledContract; engine: Engine; model?: string }> {

@@ -108,9 +108,18 @@ function toGeminiParts(content: ContentBlock[]) {
   );
 }
 
+// Structured extraction doesn't need deep reasoning; low thinking keeps compile/verify to a few seconds.
+// Set GEMINI_THINKING= (empty) to use the model default. Dropped automatically if a model rejects it.
+let thinkingLevel: string | null = process.env.GEMINI_THINKING ?? "low";
+
 async function gemini<T>(opts: CallOpts): Promise<Result<T>> {
   const model = config.ai.model;
-  const res = await fetch(`${config.ai.base}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  const res = await geminiRequest(model, opts);
+  return parseGemini<T>(res, model, opts);
+}
+
+async function geminiRequest(model: string, opts: CallOpts): Promise<Response> {
+  const send = () => fetch(`${config.ai.base}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "x-goog-api-key": config.ai.apiKey, "content-type": "application/json" },
     body: JSON.stringify({
@@ -119,9 +128,26 @@ async function gemini<T>(opts: CallOpts): Promise<Result<T>> {
       tools: [{ functionDeclarations: [{ name: opts.tool.name, description: opts.tool.description, parameters: toGeminiSchema(opts.tool.input_schema) }] }],
       toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: [opts.tool.name] } },
       // Room for the model's internal reasoning as well as the answer.
-      generationConfig: { temperature: opts.temperature ?? 0, maxOutputTokens: Math.max(8192, (opts.maxTokens ?? 4096) * 2) },
+      generationConfig: {
+        // Gemini 3 models are tuned for the default temperature; forcing 0 can make them loop and slow down.
+        ...(/gemini-[3-9]/.test(model) ? {} : { temperature: opts.temperature ?? 0 }),
+        maxOutputTokens: Math.max(8192, (opts.maxTokens ?? 4096) * 2),
+        ...(thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {}),
+      },
     }),
   });
+  let res = await send();
+  if (res.status === 400 && thinkingLevel) {
+    const body = await res.clone().text();
+    if (/thinking/i.test(body)) {
+      thinkingLevel = null;
+      res = await send();
+    }
+  }
+  return res;
+}
+
+async function parseGemini<T>(res: Response, model: string, opts: CallOpts): Promise<Result<T>> {
   const json = (await res.json().catch(() => ({}))) as {
     candidates?: { content?: { parts?: { functionCall?: { name: string; args: unknown } }[] }; finishReason?: string }[];
     modelVersion?: string;

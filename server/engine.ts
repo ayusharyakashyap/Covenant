@@ -1,7 +1,7 @@
 // The contract state machine. Every money movement goes through here, in deterministic code.
 import { nanoid } from "./id.ts";
-import { config, aiName } from "./config.ts";
-import { store, withLock } from "./store.ts";
+import { config, aiName, simulation } from "./config.ts";
+import { store, withLock as storeLock } from "./store.ts";
 import { paypal, PayPalError } from "./paypal.ts";
 import { compileDeal } from "./ai/compiler.ts";
 import { verifyMilestone } from "./ai/verifier.ts";
@@ -12,6 +12,12 @@ import { newSecret, hashSecret, inviteMatches } from "./access.ts";
 import { enqueue, registerJob } from "./jobs.ts";
 import { storeUpload, linkEvidence, textEvidence, type UploadInput } from "./evidence.ts";
 import type { Actor, Contract, LedgerEntry, Milestone, Role, Party } from "../shared/types.ts";
+
+// Sample contracts were funded by the PayPal simulator, so every later step on them (captures,
+// payouts, verification) stays in test mode, whatever keys this server has.
+function withLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+  return storeLock(id, () => simulation.run(simulation.getStore() === true || store.get(id)?.funding?.simulated === true, fn));
+}
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -137,14 +143,23 @@ export function updateDraft(id: string, role: Role | null, patch: { payer?: Part
     const c = mustGet(id);
     requireRole(role, "payer", "payee");
     if (c.status !== "draft") throw new HttpError(409, "The contract is signed and can no longer be edited.");
+    const own = () => JSON.stringify(role === "payer" ? c.payer : c.payee);
+    const rest = () => JSON.stringify([role === "payer" ? c.payee : c.payer, c.autoReleaseThreshold]);
+    const [ownBefore, restBefore] = [own(), rest()];
     if (patch.payer && role === "payer") c.payer = { ...c.payer, ...clean(patch.payer) };
     if (patch.payee && role === "payee") c.payee = { ...c.payee, ...clean(patch.payee) };
     if (patch.payee && role === "payer" && !c.signatures.payee) c.payee = { ...c.payee, ...clean(patch.payee) };
     if (typeof patch.autoReleaseThreshold === "number" && role === "payer") {
       c.autoReleaseThreshold = Math.min(0.99, Math.max(0.5, patch.autoReleaseThreshold));
     }
-    // Any edit invalidates signatures collected so far.
-    if (c.signatures.payer || c.signatures.payee) {
+    if (own() === ownBefore && rest() === restBefore) return c;
+    // Your own name or payout email is yours to change: it only asks you to sign again.
+    // Anything that touches the other party or the release policy needs both signatures again.
+    const onlyOwn = rest() === restBefore;
+    if (onlyOwn && c.signatures[role!]) {
+      delete c.signatures[role!];
+      event(c, role!, "signature_withdrawn", "Updated their details, so they need to sign again.");
+    } else if (!onlyOwn && (c.signatures.payer || c.signatures.payee)) {
       c.signatures = {};
       event(c, "system", "signatures_reset", "Terms changed, so both parties need to sign again.");
     }

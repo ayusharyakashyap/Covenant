@@ -16,25 +16,30 @@ const DAY = 864e5;
 function buildTasks(contracts: CRow[], milestones: MRow[]) {
   return contracts.map((c, ci) => {
     const ms = milestones.filter((m) => m.contractId === c.contractId);
-    let cursor = new Date(c.createdAt).getTime();
+    const created = new Date(c.createdAt).getTime();
+    let cursor = created;
     const children = ms.map((m, i) => {
-      const end = m.deadline ? Math.max(new Date(m.deadline).getTime(), cursor + DAY) : cursor + 7 * DAY;
+      // Bars end on the real deadline. Milestones that share a deadline start together; undated ones get a week.
+      const due = m.deadline ? new Date(m.deadline).getTime() : null;
+      const end = due ?? cursor + 7 * DAY;
+      const start = Math.min(due ? created : cursor, end - DAY);
       const t = {
         id: `${ci}-${i}`,
         name: `${m.milestone} · ${money(Math.round(m.amount * 100))}`,
-        startDate: new Date(cursor),
+        startDate: new Date(start),
         endDate: new Date(end),
         manuallyScheduled: true,
         percentDone: m.status === "released" || m.status === "refunded" ? 100 : m.status === "open" ? 0 : 60,
         eventColor: COLOR[m.status] ?? "blue",
         status: m.status,
+        due: due ? new Date(due).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "None",
         held: m.held,
         paid: m.paid,
       };
-      cursor = end;
+      cursor = Math.max(cursor, end);
       return t;
     });
-    return { id: `c${ci}`, name: c.contract, expanded: true, manuallyScheduled: true, children };
+    return { id: `c${ci}`, name: c.contract, expanded: true, manuallyScheduled: true, status: c.status, children };
   });
 }
 
@@ -73,12 +78,13 @@ export function Timeline({ contracts, milestones }: { contracts: CRow[]; milesto
           viewPreset: "weekAndDayLetter",
           barMargin: 8,
           columns: [
-            { type: "name", text: "Contract / milestone", width: 300 },
-            { type: "enddate", text: "Deadline" },
-            { text: "Status", field: "status", width: 110 },
+            { type: "name", text: "Contract / milestone", flex: 1, minWidth: 200 },
+            { text: "Deadline", field: "due", width: 120 },
+            { text: "Status", field: "status", width: 100 },
           ],
           project: { tasksData: tasks },
-          features: { taskMenu: false, taskEdit: false, cellEdit: false },
+          subGridConfigs: { locked: { flex: 1 }, normal: { flex: 1 } },
+          features: { taskMenu: false, taskEdit: false, cellEdit: false, projectLines: false },
         });
       } catch {
         if (alive) setFailed(true);

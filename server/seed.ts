@@ -44,7 +44,7 @@ export async function seedDemo() {
     c = await e.submitEvidence(c.id, "payee", c.milestones[0].id, { files: ["concept-1.png", "concept-2.png", "concept-3.png"].map((n) => file(n, "image/png")) });
     await drain();
     c = await e.review(c.id, "payer", c.milestones[0].id, "approve");
-    backdate(c.id, (x) => (x.milestones[1].deadline = daysAgo(2)));
+    backdate(c.id, (x) => (x.milestones[1].deadline = daysAgo(1.9)));
     c = await e.submitEvidence(c.id, "payee", c.milestones[1].id, { files: [file("brightside-final.svg", "image/svg+xml"), file("brightside-final.png", "image/png")] });
     await drain();
     c = await e.review(c.id, "payer", c.milestones[1].id, "approve");
@@ -78,7 +78,7 @@ export async function seedDemo() {
 
     // 5. Photography: funded, nothing delivered yet, deadline passed → reclaimed
     c = await funded("Pay Lena $250 for 10 edited product photos delivered as images by Nov 3.", "lena@example.com", "Brightside Bakery");
-    backdate(c.id, (x) => (x.milestones[0].deadline = daysAgo(4)));
+    backdate(c.id, (x) => (x.milestones[0].deadline = daysAgo(3.9)));
     c = await e.reclaim(c.id, "payer", c.milestones[0].id);
     keep(c);
 

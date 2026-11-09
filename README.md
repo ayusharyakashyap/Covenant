@@ -174,6 +174,8 @@ npm start
 
 You can watch every capture and payout land in the sandbox accounts at [sandbox.paypal.com](https://www.sandbox.paypal.com).
 
+If payouts fail with *"Sender does not have sufficient funds"*, your sandbox Business account doesn't hold the contract currency. Payouts are paid from that balance, so set `CURRENCY` to the account's own currency (sandbox accounts created in Singapore, for example, need `CURRENCY=SGD`). Captures and holds work either way.
+
 ### Try it as two people
 
 Client and freelancer are separate people with separate access, so use **two browsers** (or one normal window and one private window).

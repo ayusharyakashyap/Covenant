@@ -98,7 +98,9 @@ export async function createContract(text: string, opts: { payer?: Partial<Party
     origin: opts.origin ?? "web",
   };
   if (validEmail(c.payee.email)) c.ambiguities = c.ambiguities.filter((a) => !/paypal email|email address|be paid at/i.test(a));
-  if (r.currency && r.currency.toUpperCase() !== config.paypal.currency) {
+  // "$" is every dollar currency: a "$600" deal on an SGD deployment isn't a mismatch.
+  const dollarSign = /\$/.test(text) && !/\b(USD|US\$|US dollars?)\b/i.test(text) && /^(USD|SGD|CAD|AUD|NZD|HKD)$/.test(config.paypal.currency);
+  if (r.currency && r.currency.toUpperCase() !== config.paypal.currency && !dollarSign) {
     c.ambiguities.push(`The deal mentions ${r.currency}; this deployment settles in ${config.paypal.currency}.`);
   }
   const payerKey = newSecret();

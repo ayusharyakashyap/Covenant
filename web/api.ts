@@ -64,7 +64,7 @@ export const api = {
 export const inviteLink = (id: string, code: string) => `${location.origin}/join/${id}#${code}`;
 
 export const money = (cents: number, currency = "USD") =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+  new Intl.NumberFormat("en-US", { style: "currency", currency, currencyDisplay: "narrowSymbol" }).format(cents / 100);
 
 export const when = (iso: string) => {
   const d = new Date(iso);
